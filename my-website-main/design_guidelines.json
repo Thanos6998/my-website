@@ -1,0 +1,132 @@
+{
+  "theme": "dark",
+  "archetype": "Archetype 5: Jewel & Luxury (Warm Moody Dark)",
+  "brand": {
+    "name": "Whispero Nepal",
+    "mission": "Anonymous chat and confession platform for young adults"
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Playfair Display",
+      "body": "Manrope"
+    },
+    "rules": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tight text-white",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight text-white/90",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight text-white/90",
+      "body": "text-base text-white/70 leading-relaxed",
+      "small": "text-sm text-white/50",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-[#FFB703]"
+    }
+  },
+  "colors": {
+    "primary": {
+      "base": "#E63946",
+      "hover": "#D62828",
+      "foreground": "#FFFFFF"
+    },
+    "accent": {
+      "base": "#FFB703",
+      "hover": "#FB8500",
+      "foreground": "#050505"
+    },
+    "backgrounds": {
+      "app": "#050505",
+      "surface": "#0F0A0A",
+      "elevated": "#1A1010",
+      "glass": "rgba(5, 5, 5, 0.8)"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "rgba(255, 255, 255, 0.7)",
+      "muted": "rgba(255, 255, 255, 0.4)"
+    },
+    "border": {
+      "subtle": "rgba(255, 255, 255, 0.05)",
+      "accent": "rgba(230, 57, 70, 0.2)"
+    }
+  },
+  "spacing_and_layout": {
+    "container": "max-w-md mx-auto w-full min-h-screen relative overflow-x-hidden pb-20",
+    "card_padding": "p-6",
+    "gap_large": "gap-6",
+    "gap_small": "gap-3",
+    "mobile_first": true
+  },
+  "components": {
+    "confession_card": {
+      "style": "bg-[#0F0A0A] rounded-2xl border border-white/5 p-5 shadow-[0_8px_32px_rgba(230,57,70,0.03)] hover:border-[#E63946]/20 transition-colors duration-300 flex flex-col gap-4",
+      "header": "flex items-center justify-between",
+      "avatar": "w-10 h-10 rounded-full border border-white/10 shrink-0 object-cover",
+      "tag": "bg-[#1A1010] text-[#FFB703] text-xs font-semibold px-2.5 py-1 rounded-full border border-[#FFB703]/20",
+      "text": "text-base text-white/90 leading-relaxed font-body",
+      "actions": "flex items-center gap-4 pt-3 border-t border-white/5"
+    },
+    "buttons": {
+      "primary": "bg-[#E63946] text-white hover:bg-[#D62828] active:scale-95 rounded-full px-6 py-3 font-semibold transition-all shadow-[0_0_20px_rgba(230,57,70,0.3)]",
+      "secondary": "bg-[#1A1010] text-white/80 hover:text-white hover:bg-white/10 active:scale-95 rounded-full px-6 py-3 font-semibold border border-white/10 transition-all",
+      "ghost": "text-white/60 hover:text-[#FFB703] bg-transparent hover:bg-white/5 active:scale-95 rounded-full px-4 py-2 transition-all",
+      "icon": "h-10 w-10 rounded-full flex items-center justify-center bg-[#1A1010] hover:bg-[#E63946] text-white/80 hover:text-white transition-all border border-white/5"
+    },
+    "inputs": {
+      "text": "bg-[#0F0A0A] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:border-[#E63946] focus:ring-1 focus:ring-[#E63946]/50 transition-all text-base",
+      "capsule_chat": "bg-[#1A1010] border border-white/10 rounded-full px-5 py-3 text-white placeholder-white/40 focus:outline-none focus:border-[#FFB703] w-full"
+    },
+    "chat_bubbles": {
+      "sender": "bg-gradient-to-br from-[#E63946] to-[#D62828] text-white p-4 rounded-2xl rounded-tr-sm self-end max-w-[85%] shadow-[0_4px_15px_rgba(230,57,70,0.2)]",
+      "receiver": "bg-[#1A1010] border border-white/5 text-white/90 p-4 rounded-2xl rounded-tl-sm self-start max-w-[85%]"
+    },
+    "bottom_nav": {
+      "container": "fixed bottom-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#050505]/90 border-t border-white/5 pb-safe pt-2 px-6 flex justify-between items-center max-w-md mx-auto h-[72px]",
+      "item": "flex flex-col items-center justify-center gap-1 w-12 h-12 text-white/50 hover:text-white transition-colors relative",
+      "active_item": "text-[#FFB703]",
+      "active_indicator": "absolute -bottom-1 w-1 h-1 rounded-full bg-[#FFB703]"
+    },
+    "category_tabs": {
+      "container": "flex overflow-x-auto gap-3 py-3 px-4 no-scrollbar border-b border-white/5",
+      "tab": "whitespace-nowrap px-5 py-2 rounded-full border font-medium text-sm transition-all",
+      "active": "bg-[#E63946] border-[#E63946] text-white shadow-[0_0_15px_rgba(230,57,70,0.3)]",
+      "inactive": "bg-[#1A1010] border-white/5 text-white/60 hover:text-white hover:bg-white/10"
+    },
+    "modals": {
+      "overlay": "bg-black/80 backdrop-blur-sm z-50",
+      "content": "bg-[#0F0A0A] border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl",
+      "report_modal": "bg-[#0F0A0A] border border-[#E63946]/20 rounded-2xl p-6 shadow-[0_0_40px_rgba(230,57,70,0.1)] text-white"
+    },
+    "badges": {
+      "trending": "bg-gradient-to-r from-[#FFB703] to-[#FB8500] text-[#050505] text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1"
+    }
+  },
+  "motion_and_interactions": {
+    "hover": "Subtle brightness increase and -translate-y-[1px]",
+    "active": "Scale down to 95%",
+    "page_transitions": "Fade in with subtle 10px slide up (Framer Motion or standard CSS)",
+    "loading": "Skeleton pulse matching the #1A1010 surface color"
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1720746940751-7d168d2eb181?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMHBlb3BsZSUyMGNoYXR0aW5nJTIwc3Vuc2V0JTIwc2lsaG91ZXR0ZXxlbnwwfHx8fDE3NzU2NTYwNzZ8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Group chatting silhouette sunset",
+      "category": "onboarding_background"
+    },
+    {
+      "url": "https://images.pexels.com/photos/2627060/pexels-photo-2627060.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Two people chatting silhouette sunset",
+      "category": "welcome_modal_header"
+    }
+  ],
+  "testing": {
+    "required_attributes": "All buttons, inputs, category tabs, and interactive elements MUST have a unique data-testid matching kebab-case (e.g., data-testid='login-button', data-testid='tab-trending')"
+  },
+  "instructions_to_main_agent": [
+    "Strictly non-destructive update. DO NOT change any core state variables, React Context structures, or API fetching logic.",
+    "Update classNames in /app/frontend/src/components/ to match these design guidelines.",
+    "Ensure `lucide-react` is used for all iconography, sized correctly (usually w-5 h-5 or w-6 h-6).",
+    "Replace the old blue/purple theme on ReportModal to match the moody ruby/amber dark theme.",
+    "Ensure the entire app is wrapped in the mobile-first constraint layout (`max-w-md mx-auto`) with proper safe-area padding for the bottom navigation.",
+    "Update index.css to configure Tailwind variables if necessary, but prioritize standard utility classes.",
+    "Remove any remaining flat white/gray themes and thoroughly enforce the warm dark mode across all views (Home, Stranger Chat, Trending, Alerts).",
+    "Inject `data-testid` properties to every single clickable UI element.",
+    "Always maintain accessibility: Focus states must have `focus:ring-1 focus:ring-[#E63946]` or similar visible rings."
+  ]
+}
