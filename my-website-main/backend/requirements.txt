@@ -117,7 +117,7 @@ watchfiles==1.1.1
 websockets==16.0
 yarl==1.23.0
 zipp==3.23.0
-protobuf==6.30.2
+protobuf==5.29.4
 grpcio-status==1.71.0
 grpcio==1.71.0
 setuptools>=75.0.0
