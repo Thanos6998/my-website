@@ -1,3 +1,5 @@
+import cloudinary.uploader
+from cloudinary_config import *
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Header, Query, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import Response
