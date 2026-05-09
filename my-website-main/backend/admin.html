@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Whispero Admin Panel</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  /* LOGIN */
+  #loginPage { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+  .login-box { background: #1e293b; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .login-box h1 { text-align: center; margin-bottom: 8px; font-size: 24px; color: #f8fafc; }
+  .login-box p { text-align: center; color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
+  .form-group input { width: 100%; padding: 12px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-group input:focus { border-color: #6366f1; }
+  .btn-login { width: 100%; padding: 12px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
+  .btn-login:hover { background: #4f46e5; }
+  .error-msg { background: #7f1d1d; color: #fca5a5; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+
+  /* DASHBOARD */
+  #dashboardPage { display: none; }
+  .topbar { background: #1e293b; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 100; }
+  .topbar h1 { font-size: 20px; color: #f8fafc; }
+  .btn-logout { padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; padding: 24px; }
+  .stat-card { background: #1e293b; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #334155; }
+  .stat-card .number { font-size: 32px; font-weight: 700; color: #6366f1; }
+  .stat-card .label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+  .tabs { display: flex; gap: 8px; padding: 0 24px 16px; flex-wrap: wrap; }
+  .tab { padding: 8px 20px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; cursor: pointer; font-size: 13px; color: #94a3b8; transition: all 0.2s; }
+  .tab.active { background: #6366f1; border-color: #6366f1; color: white; }
+
+  .content { padding: 0 24px 24px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
+  th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 12px 16px; border-bottom: 1px solid #334155; font-size: 13px; vertical-align: top; max-width: 300px; word-break: break-word; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #263348; }
+
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-pending { background: #78350f; color: #fcd34d; }
+  .badge-resolved { background: #14532d; color: #86efac; }
+  .badge-ignored { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+
+  .btn-delete { padding: 5px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-delete:hover { background: #dc2626; }
+  .btn-resolve { padding: 5px 12px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 4px; }
+  .btn-ignore { padding: 5px 12px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .btn-ban { padding: 5px 12px; background: #f97316; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+
+  .loading { text-align: center; padding: 40px; color: #94a3b8; }
+  .empty { text-align: center; padding: 40px; color: #475569; }
+
+  .refresh-btn { padding: 8px 16px; background: #334155; color: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 16px; }
+  .refresh-btn:hover { background: #475569; }
+
+  .text-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .category-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #312e81; color: #a5b4fc; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="loginPage">
+  <div class="login-box">
+    <h1>🔐 Admin Panel</h1>
+    <p>Whispero Nepal — Secure Access</p>
+    <div class="error-msg" id="errorMsg">Invalid email or password</div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input type="email" id="emailInput" placeholder="your@email.com" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="passwordInput" placeholder="••••••••" onkeydown="if(event.key==='Enter') login()" />
+    </div>
+    <button class="btn-login" onclick="login()">Sign In</button>
+  </div>
+</div>
+
+<!-- DASHBOARD PAGE -->
+<div id="dashboardPage">
+  <div class="topbar">
+    <h1>⚡ Whispero Admin</h1>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="number" id="statConfessions">-</div><div class="label">Confessions</div></div>
+    <div class="stat-card"><div class="number" id="statComments">-</div><div class="label">Comments</div></div>
+    <div class="stat-card"><div class="number" id="statReports">-</div><div class="label">Total Reports</div></div>
+    <div class="stat-card"><div class="number" id="statPending">-</div><div class="label">Pending Reports</div></div>
+    <div class="stat-card"><div class="number" id="statSessions">-</div><div class="label">Sessions</div></div>
+    <div class="stat-card"><div class="number" id="statBanned">-</div><div class="label">Banned</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('confessions')">📝 Confessions</div>
+    <div class="tab" onclick="switchTab('comments')">💬 Comments</div>
+    <div class="tab" onclick="switchTab('reports')">🚨 Reports</div>
+    <div class="tab" onclick="switchTab('sessions')">👥 Sessions</div>
+    <div class="tab" onclick="switchTab('images')">🖼️ Images</div>
+  </div>
+
+  <div class="content">
+
+    <!-- CONFESSIONS -->
+    <div class="section active" id="section-confessions">
+      <button class="refresh-btn" onclick="loadConfessions()">🔄 Refresh</button>
+      <table>
+        <thead><tr><th>Text</th><th>Category</th><th>Nickname</th><th>Likes</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody id="confessionsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- COMMENTS -->
+    <div class="section" id="section-comments">
+      <button class="refresh-btn" onclick="loadComments()">🔄 Refresh</button>
+      <table>
+        <thead><tr><th>Text</th><th>Nickname</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody id="commentsBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="section" id="section-reports">
+      <button class="refresh-btn" onclick="loadReports()">🔄 Refresh</button>
+      <table>
+        <thead><tr><th>Type</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody id="reportsBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- SESSIONS -->
+    <div class="section" id="section-sessions">
+      <button class="refresh-btn" onclick="loadSessions()">🔄 Refresh</button>
+      <table>
+        <thead><tr><th>Session ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="sessionsBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- IMAGES -->
+    <div class="section" id="section-images">
+      <button class="refresh-btn" onclick="loadImages()">🔄 Refresh</button>
+      <table>
+        <thead><tr><th>Filename</th><th>Type</th><th>Size</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody id="imagesBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ⚠️ CHANGE THIS to your Render backend URL
+  const BACKEND_URL = 'https://my-website-g7nn.onrender.com';
+
+  let token = localStorage.getItem('admin_token') || '';
+
+  // Auto-login if token exists
+  if (token) showDashboard();
+
+  async function login() {
+    const email = document.getElementById('emailInput').value.trim();
+    const password = document.getElementById('passwordInput').value.trim();
+    const errorMsg = document.getElementById('errorMsg');
+    errorMsg.style.display = 'none';
+
+    if (!email || !password) {
+      errorMsg.textContent = 'Please enter email and password';
+      errorMsg.style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!res.ok) {
+        errorMsg.textContent = 'Invalid email or password';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      const data = await res.json();
+      token = data.access_token;
+      localStorage.setItem('admin_token', token);
+      showDashboard();
+    } catch (e) {
+      errorMsg.textContent = 'Cannot connect to server. Check your backend URL.';
+      errorMsg.style.display = 'block';
+    }
+  }
+
+  function logout() {
+    token = '';
+    localStorage.removeItem('admin_token');
+    document.getElementById('dashboardPage').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'flex';
+  }
+
+  function showDashboard() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('dashboardPage').style.display = 'block';
+    loadAnalytics();
+    loadConfessions();
+  }
+
+  async function apiGet(path) {
+    const res = await fetch(`${BACKEND_URL}${path}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.status === 401) { logout(); return null; }
+    return res.json();
+  }
+
+  async function apiDelete(path) {
+    const res = await fetch(`${BACKEND_URL}${path}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return res.ok;
+  }
+
+  async function loadAnalytics() {
+    const data = await apiGet('/api/admin/analytics');
+    if (!data) return;
+    document.getElementById('statConfessions').textContent = data.total_confessions;
+    document.getElementById('statComments').textContent = data.total_comments;
+    document.getElementById('statReports').textContent = data.total_reports;
+    document.getElementById('statPending').textContent = data.pending_reports;
+    document.getElementById('statSessions').textContent = data.total_sessions;
+    document.getElementById('statBanned').textContent = data.total_banned;
+  }
+
+  async function loadConfessions() {
+    const tbody = document.getElementById('confessionsBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+    const data = await apiGet('/api/confessions?limit=50');
+    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No confessions found</td></tr>'; return; }
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td class="text-truncate" title="${c.text}">${c.text}</td>
+        <td><span class="category-badge">${c.category}</span></td>
+        <td>${c.nickname || '-'}</td>
+        <td>❤️ ${c.likes}</td>
+        <td>${c.created_at.slice(0,10)}</td>
+        <td><button class="btn-delete" onclick="deleteConfession('${c.id}', this)">Delete</button></td>
+      </tr>`).join('');
+  }
+
+  async function deleteConfession(id, btn) {
+    if (!confirm('Delete this confession?')) return;
+    btn.disabled = true; btn.textContent = '...';
+    const ok = await apiDelete(`/api/admin/confessions/${id}`);
+    if (ok) { btn.closest('tr').remove(); loadAnalytics(); }
+    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
+  }
+
+  async function loadComments() {
+    const tbody = document.getElementById('commentsBody');
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
+    const data = await apiGet('/api/admin/comments?limit=50');
+    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No comments found</td></tr>'; return; }
+    tbody.innerHTML = data.map(c => `
+      <tr>
+        <td class="text-truncate" title="${c.text}">${c.text}</td>
+        <td>${c.nickname || '-'}</td>
+        <td>${c.created_at.slice(0,10)}</td>
+        <td><button class="btn-delete" onclick="deleteComment('${c.id}', this)">Delete</button></td>
+      </tr>`).join('');
+  }
+
+  async function deleteComment(id, btn) {
+    if (!confirm('Delete this comment?')) return;
+    btn.disabled = true; btn.textContent = '...';
+    const ok = await apiDelete(`/api/admin/comments/${id}`);
+    if (ok) { btn.closest('tr').remove(); loadAnalytics(); }
+    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
+  }
+
+  async function loadReports() {
+    const tbody = document.getElementById('reportsBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
+    const data = await apiGet('/api/admin/reports?limit=50');
+    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No reports found</td></tr>'; return; }
+    tbody.innerHTML = data.map(r => `
+      <tr>
+        <td>${r.target_type}</td>
+        <td class="text-truncate" title="${r.reason}">${r.reason}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td>${r.created_at.slice(0,10)}</td>
+        <td>
+          ${r.status === 'pending' ? `
+            <button class="btn-resolve" onclick="resolveReport('${r.id}', 'resolve', this)">✓ Resolve</button>
+            <button class="btn-ignore" onclick="resolveReport('${r.id}', 'ignore', this)">Ignore</button>
+          ` : '-'}
+        </td>
+      </tr>`).join('');
+  }
+
+  async function resolveReport(id, action, btn) {
+    btn.disabled = true;
+    const res = await fetch(`${BACKEND_URL}/api/admin/reports/${id}/resolve?action=${action}`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) loadReports();
+    else { btn.disabled = false; alert('Failed'); }
+  }
+
+  async function loadSessions() {
+    const tbody = document.getElementById('sessionsBody');
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
+    const data = await apiGet('/api/admin/sessions?limit=50');
+    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No sessions found</td></tr>'; return; }
+    tbody.innerHTML = data.map(s => `
+      <tr>
+        <td style="font-size:11px;font-family:monospace">${s.id}</td>
+        <td>${s.created_at.slice(0,10)}</td>
+        <td>${s.is_banned ? '<span class="badge badge-pending">Banned</span>' : '<span class="badge badge-resolved">Active</span>'}</td>
+        <td>${!s.is_banned ? `<button class="btn-ban" onclick="banSession('${s.id}', this)">Ban</button>` : '-'}</td>
+      </tr>`).join('');
+  }
+
+  async function banSession(id, btn) {
+    const reason = prompt('Reason for ban?');
+    if (!reason) return;
+    btn.disabled = true; btn.textContent = '...';
+    const res = await fetch(`${BACKEND_URL}/api/admin/ban-session?session_id=${id}&reason=${encodeURIComponent(reason)}`, {
+      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) { loadSessions(); loadAnalytics(); }
+    else { btn.disabled = false; btn.textContent = 'Ban'; alert('Failed to ban'); }
+  }
+
+  async function loadImages() {
+    const tbody = document.getElementById('imagesBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
+    const data = await apiGet('/api/admin/images?limit=50');
+    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No images found</td></tr>'; return; }
+    tbody.innerHTML = data.map(f => `
+      <tr>
+        <td class="text-truncate">${f.original_filename || '-'}</td>
+        <td>${f.content_type || '-'}</td>
+        <td>${f.size ? (f.size/1024).toFixed(1) + ' KB' : '-'}</td>
+        <td>${f.created_at.slice(0,10)}</td>
+        <td><button class="btn-delete" onclick="deleteImage('${f.id}', this)">Delete</button></td>
+      </tr>`).join('');
+  }
+
+  async function deleteImage(id, btn) {
+    if (!confirm('Delete this file?')) return;
+    btn.disabled = true; btn.textContent = '...';
+    const ok = await apiDelete(`/api/admin/images/${id}`);
+    if (ok) btn.closest('tr').remove();
+    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById(`section-${name}`).classList.add('active');
+    if (name === 'confessions') loadConfessions();
+    else if (name === 'comments') loadComments();
+    else if (name === 'reports') loadReports();
+    else if (name === 'sessions') loadSessions();
+    else if (name === 'images') loadImages();
+  }
+</script>
+</body>
+</html>
