@@ -2,7 +2,7 @@ import cloudinary.uploader
 from cloudinary_config import *
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Header, Query, WebSocket, WebSocketDisconnect, Depends
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -1108,9 +1108,17 @@ async def startup():
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+@app.get("/admin.html", response_class=HTMLResponse)
+async def admin_panel():
+    admin_file = ROOT_DIR / "admin.html"
+    if not admin_file.exists():
+        raise HTTPException(status_code=404, detail="Admin panel not found")
+    return HTMLResponse(content=admin_file.read_text())
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
