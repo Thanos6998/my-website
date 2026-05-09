@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Heart, MessageCircle, Share2, Flag, MoreHorizontal, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { getAvatarColor, getInitials } from '../utils/identity';
@@ -14,12 +14,36 @@ const ConfessionCard = ({ confession, onCommentClick, onReport }) => {
   const [likeCount, setLikeCount] = useState(confession.likes || 0);
   const [animateLike, setAnimateLike] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef(null);
 
   const colors = getAvatarColor(confession.nickname);
   const initials = getInitials(confession.nickname);
   const safeMode = getSafeMode();
   const isAdult = confession.is_adult;
   const shouldBlur = isAdult && safeMode && !adultRevealed;
+
+  // ── AUTOPLAY ON SCROLL ──────────────────────────────
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
 
   const handleLike = async () => {
     try {
@@ -63,6 +87,14 @@ const ConfessionCard = ({ confession, onCommentClick, onReport }) => {
   const handleAdultReveal = () => {
     if (getAgeVerified()) setAdultRevealed(true);
     else setShowAgeModal(true);
+  };
+
+  const toggleMute = (e) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
+    }
   };
 
   let timeAgo = '';
@@ -116,16 +148,41 @@ const ConfessionCard = ({ confession, onCommentClick, onReport }) => {
           </div>
         )}
 
-        {/* Content */}
+        {/* Text */}
         <p className="text-[15px] leading-relaxed text-white/85 mb-3" data-testid="confession-text">{confession.text}</p>
 
         {/* Media */}
         {confession.media_url && (
           <div className="relative mb-3 rounded-xl overflow-hidden">
             {confession.media_type === 'image' ? (
-              <img src={`${API}/files/${confession.media_url}`} alt="" className={`w-full max-h-[50vh] object-cover rounded-xl ${shouldBlur ? 'blur-3xl' : ''}`} loading="lazy" data-testid="confession-image" />
+              <img
+                src={`${API}/files/${confession.media_url}`}
+                alt=""
+                className={`w-full max-h-[50vh] object-cover rounded-xl ${shouldBlur ? 'blur-3xl' : ''}`}
+                loading="lazy"
+                data-testid="confession-image"
+              />
             ) : (
-              <video src={`${API}/files/${confession.media_url}`} controls={!shouldBlur} muted className={`w-full max-h-[50vh] object-cover rounded-xl ${shouldBlur ? 'blur-3xl' : ''}`} data-testid="confession-video" />
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  src={`${API}/files/${confession.media_url}`}
+                  muted={isMuted}
+                  loop
+                  playsInline
+                  className={`w-full max-h-[50vh] object-cover rounded-xl ${shouldBlur ? 'blur-3xl' : ''}`}
+                  data-testid="confession-video"
+                />
+                {/* Mute/Unmute button */}
+                {!shouldBlur && (
+                  <button
+                    onClick={toggleMute}
+                    className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm hover:bg-black/80 transition-all"
+                  >
+                    {isMuted ? '🔇 Tap for sound' : '🔊 Sound on'}
+                  </button>
+                )}
+              </div>
             )}
             {shouldBlur && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-xl cursor-pointer" onClick={handleAdultReveal} data-testid="adult-blur-overlay">
