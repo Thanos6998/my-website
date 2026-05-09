@@ -442,7 +442,7 @@ async def create_confession(
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    media_url, media_type = await async def _process_confession_media(media: UploadFile, session_id: str):
+    media_url, media_type = await _process_confession_media(media, session_id) if media else (None, None)
     """Upload confession media to Cloudinary. Returns (media_url, media_type)."""
     data = await media.read()
     
@@ -501,9 +501,7 @@ async def create_confession(
 
 
 async def _process_confession_media(media: UploadFile, session_id: str):
-    """Extract and upload confession media. Returns (media_url, media_type)."""
-    ext = media.filename.split(".")[-1] if "." in media.filename else "bin"
-    path = f"{APP_NAME}/uploads/{session_id}/{uuid.uuid4()}.{ext}"
+    """Upload confession media to Cloudinary. Returns (media_url, media_type)."""
     data = await media.read()
     
     size_mb = len(data) / (1024 * 1024)
@@ -511,26 +509,37 @@ async def _process_confession_media(media: UploadFile, session_id: str):
         if size_mb > 2:
             raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
         media_type = "image"
+        resource_type = "image"
     elif media.content_type and media.content_type.startswith("video/"):
         if size_mb > 10:
             raise HTTPException(status_code=400, detail="Video size exceeds 10MB")
         media_type = "video"
+        resource_type = "video"
     else:
         media_type = None
+        resource_type = "auto"
     
-    result = put_object(path, data, media.content_type or "application/octet-stream")
+    import io
+    result = cloudinary.uploader.upload(
+        io.BytesIO(data),
+        resource_type=resource_type,
+        folder="whispero/confessions",
+        quality="auto",
+        fetch_format="auto"
+    )
     
     await db.files.insert_one({
         "id": str(uuid.uuid4()),
-        "storage_path": result["path"],
+        "storage_path": result["secure_url"],
+        "public_id": result["public_id"],
         "original_filename": media.filename,
         "content_type": media.content_type,
-        "size": result["size"],
+        "size": result["bytes"],
         "is_deleted": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
-    return result["path"], media_type
+    return result["secure_url"], media_type
 
 @api_router.get("/confessions", response_model=List[Confession])
 async def get_confessions(
