@@ -734,17 +734,9 @@ async def ban_session(session_id: str = Query(...), reason: str = Query(...), ad
     })
     return {"message": "Session banned"}
 
-ADMIN_USERNAME = "Santoshi@60poudel"
 
-@api_router.post("/admin/auto-login")
-async def admin_auto_login(name: str = Query(...)):
-    if name != ADMIN_USERNAME:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    admin = await db.admins.find_one({"email": "admin@guptkura.com"}, {"_id": 0})
-    if not admin:
-        raise HTTPException(status_code=500, detail="Admin account not found")
-    access_token = create_access_token({"sub": admin["email"], "role": "admin"})
-    return {"access_token": access_token, "token_type": "bearer"}
+
+
 
 @api_router.get("/admin/analytics")
 async def admin_analytics(admin: dict = Depends(verify_admin_token)):
@@ -1089,23 +1081,27 @@ async def auto_delete_old_data():
         
         await asyncio.sleep(600)  # Run every 10 minutes
 
+
 @app.on_event("startup")
 async def startup():
     try:
         init_storage()
         logger.info("Storage initialized")
-        
+
         # Create default admin if not exists
-        admin_exists = await db.admins.find_one({"email": "admin@guptkura.com"})
-        if not admin_exists:
-            await db.admins.insert_one({
-                "id": str(uuid.uuid4()),
-                "email": "admin@guptkura.com",
-                "password_hash": pwd_context.hash("admin123"),
-                "created_at": datetime.now(timezone.utc).isoformat()
-            })
-            logger.info("Default admin created")
-        
+        admin_email = os.environ.get("ADMIN_EMAIL", "")
+        admin_password = os.environ.get("ADMIN_PASSWORD", "")
+        if admin_email and admin_password:
+            admin_exists = await db.admins.find_one({"email": admin_email})
+            if not admin_exists:
+                await db.admins.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "email": admin_email,
+                    "password_hash": pwd_context.hash(admin_password),
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                logger.info("Admin created from environment variables")
+
         # Start auto-delete task
         asyncio.create_task(auto_delete_old_data())
         logger.info("24-hour auto-delete task started")
@@ -1114,10 +1110,18 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    try:
-        client.close()
-    except Exception as e:
-        logger.error(f"Shutdown error: {e}")
-@app.on_event("shutdown")
-async def shutdown_db_client():
     client.close()
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        result = cloudinary.uploader.upload(file.file)
+
+        return {
+            "url": result["secure_url"]
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
