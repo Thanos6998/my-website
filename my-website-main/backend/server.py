@@ -442,7 +442,48 @@ async def create_confession(
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    media_url, media_type = await _process_confession_media(media, session_id) if media else (None, None)
+    media_url, media_type = await async def _process_confession_media(media: UploadFile, session_id: str):
+    """Upload confession media to Cloudinary. Returns (media_url, media_type)."""
+    data = await media.read()
+    
+    size_mb = len(data) / (1024 * 1024)
+    if media.content_type and media.content_type.startswith("image/"):
+        if size_mb > 2:
+            raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
+        media_type = "image"
+        resource_type = "image"
+    elif media.content_type and media.content_type.startswith("video/"):
+        if size_mb > 10:
+            raise HTTPException(status_code=400, detail="Video size exceeds 10MB")
+        media_type = "video"
+        resource_type = "video"
+    else:
+        media_type = None
+        resource_type = "auto"
+    
+    # Upload to Cloudinary
+    import io
+    result = cloudinary.uploader.upload(
+        io.BytesIO(data),
+        resource_type=resource_type,
+        folder="whispero/confessions",
+        quality="auto",
+        fetch_format="auto"
+    )
+    
+    # Save file record to MongoDB
+    await db.files.insert_one({
+        "id": str(uuid.uuid4()),
+        "storage_path": result["secure_url"],
+        "public_id": result["public_id"],
+        "original_filename": media.filename,
+        "content_type": media.content_type,
+        "size": result["bytes"],
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result["secure_url"], media_type(media, session_id) if media else (None, None)
     
     confession = Confession(
         session_id=session_id,
@@ -658,10 +699,22 @@ async def create_report(
 
 @api_router.get("/files/{path:path}")
 async def download_file(path: str):
+    # If path is already a full Cloudinary URL, redirect to it
+    if path.startswith("http"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=path)
+    
+    # Check database for file record
     record = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="File not found")
     
+    # If stored URL is a Cloudinary URL redirect to it
+    if record["storage_path"].startswith("http"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=record["storage_path"])
+    
+    # Legacy old storage fallback
     try:
         data, content_type = get_object(path)
         return Response(content=data, media_type=record.get("content_type", content_type))
@@ -688,6 +741,7 @@ async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_tok
         raise HTTPException(status_code=404, detail="Comment not found")
     return {"message": "Comment deleted"}
 
+
 @api_router.post("/upload-chat-media")
 async def upload_chat_media(
     session_id: str = Header(..., alias="X-Session-Id"),
@@ -697,32 +751,40 @@ async def upload_chat_media(
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    ext = media.filename.split(".")[-1] if "." in media.filename else "bin"
-    path = f"{APP_NAME}/chat/{session_id}/{uuid.uuid4()}.{ext}"
     data = await media.read()
-    
-    # Validate size
     size_mb = len(data) / (1024 * 1024)
+    
     if media.content_type and media.content_type.startswith("image/"):
         if size_mb > 2:
             raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
+        resource_type = "image"
     elif media.content_type and media.content_type.startswith("video/"):
         if size_mb > 10:
             raise HTTPException(status_code=400, detail="Video size exceeds 10MB")
+        resource_type = "video"
+    else:
+        resource_type = "auto"
     
-    result = put_object(path, data, media.content_type or "application/octet-stream")
+    import io
+    result = cloudinary.uploader.upload(
+        io.BytesIO(data),
+        resource_type=resource_type,
+        folder="whispero/chat",
+        quality="auto"
+    )
     
     await db.files.insert_one({
         "id": str(uuid.uuid4()),
-        "storage_path": result["path"],
+        "storage_path": result["secure_url"],
+        "public_id": result["public_id"],
         "original_filename": media.filename,
         "content_type": media.content_type,
-        "size": result["size"],
+        "size": result["bytes"],
         "is_deleted": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
-    return {"media_url": result["path"]}
+    return {"media_url": result["secure_url"]}
 
 @api_router.post("/admin/ban-session")
 async def ban_session(session_id: str = Query(...), reason: str = Query(...), admin: dict = Depends(verify_admin_token)):
@@ -842,9 +904,9 @@ async def upload_compressed_media(
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
     
-    ext = media.filename.split(".")[-1] if "." in media.filename else "bin"
     data = await media.read()
     content_type = media.content_type or "application/octet-stream"
+    ext = media.filename.split(".")[-1] if "." in media.filename else "bin"
     
     data, content_type = _compress_image(data, content_type, ext)
     
@@ -852,10 +914,18 @@ async def upload_compressed_media(
     if size_mb > 5:
         raise HTTPException(status_code=400, detail="File size exceeds 5MB")
     
-    path = f"{APP_NAME}/chat/{session_id}/{uuid.uuid4()}.{ext}"
-    result = put_object(path, data, content_type)
+    resource_type = "video" if content_type.startswith("video/") else "image"
     
-    return {"media_url": result["path"], "size": result["size"]}
+    import io
+    result = cloudinary.uploader.upload(
+        io.BytesIO(data),
+        resource_type=resource_type,
+        folder="whispero/compressed",
+        quality="auto",
+        fetch_format="auto"
+    )
+    
+    return {"media_url": result["secure_url"], "size": result["bytes"]}
 
 
 def _compress_image(data: bytes, content_type: str, ext: str) -> tuple:
