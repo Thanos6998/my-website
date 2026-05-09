@@ -502,9 +502,12 @@ async def create_confession(
 
 async def _process_confession_media(media: UploadFile, session_id: str):
     """Upload confession media to Cloudinary. Returns (media_url, media_type)."""
-    data = await media.read()
+    contents = await media.read()
     
-    size_mb = len(data) / (1024 * 1024)
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty file received")
+    
+    size_mb = len(contents) / (1024 * 1024)
     if media.content_type and media.content_type.startswith("image/"):
         if size_mb > 2:
             raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
@@ -521,7 +524,7 @@ async def _process_confession_media(media: UploadFile, session_id: str):
     
     import io
     result = cloudinary.uploader.upload(
-        io.BytesIO(data),
+        io.BytesIO(contents),
         resource_type=resource_type,
         folder="whispero/confessions",
         quality="auto",
