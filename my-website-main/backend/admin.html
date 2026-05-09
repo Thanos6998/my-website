@@ -1,385 +1,622 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Whispero Admin Panel</title>
+<title>Whispero Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+:root {
+  --bg: #080c14;
+  --surface: #0d1321;
+  --surface2: #111927;
+  --border: #1e2d42;
+  --accent: #00d4ff;
+  --accent2: #ff3c6e;
+  --accent3: #7c3aed;
+  --text: #e2eaf4;
+  --muted: #4a6080;
+  --success: #00e5a0;
+  --warning: #ffb020;
+  --danger: #ff3c6e;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Syne',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:var(--bg); } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
 
-  /* LOGIN */
-  #loginPage { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-  .login-box { background: #1e293b; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
-  .login-box h1 { text-align: center; margin-bottom: 8px; font-size: 24px; color: #f8fafc; }
-  .login-box p { text-align: center; color: #94a3b8; margin-bottom: 30px; font-size: 14px; }
-  .form-group { margin-bottom: 16px; }
-  .form-group label { display: block; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
-  .form-group input { width: 100%; padding: 12px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 14px; outline: none; transition: border-color 0.2s; }
-  .form-group input:focus { border-color: #6366f1; }
-  .btn-login { width: 100%; padding: 12px; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: background 0.2s; }
-  .btn-login:hover { background: #4f46e5; }
-  .error-msg { background: #7f1d1d; color: #fca5a5; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+/* LOGIN */
+#loginPage { display:flex; justify-content:center; align-items:center; min-height:100vh; background:radial-gradient(ellipse at 30% 50%, #0a1628 0%, var(--bg) 60%); }
+.login-box { width:100%; max-width:420px; padding:48px 40px; background:linear-gradient(135deg,#0d1321 0%,#111927 100%); border:1px solid var(--border); border-radius:20px; box-shadow:0 0 80px rgba(0,212,255,0.05),0 40px 80px rgba(0,0,0,0.6); position:relative; overflow:hidden; }
+.login-box::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); }
+.login-logo { text-align:center; margin-bottom:32px; }
+.login-logo h1 { font-size:28px; font-weight:800; } .login-logo h1 span { color:var(--accent); }
+.login-logo p { color:var(--muted); font-size:13px; margin-top:4px; font-family:'JetBrains Mono',monospace; }
+.form-group { margin-bottom:18px; }
+.form-group label { display:block; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; }
+.form-group input { width:100%; padding:13px 16px; background:#080c14; border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:14px; font-family:'Syne',sans-serif; outline:none; transition:all 0.2s; }
+.form-group input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,212,255,0.08); }
+.btn-login { width:100%; padding:14px; background:var(--accent); color:#080c14; border:none; border-radius:10px; font-size:15px; font-weight:700; font-family:'Syne',sans-serif; cursor:pointer; margin-top:8px; transition:all 0.2s; }
+.btn-login:hover { background:#33ddff; transform:translateY(-1px); box-shadow:0 8px 24px rgba(0,212,255,0.25); }
+.error-msg { background:rgba(255,60,110,0.1); border:1px solid rgba(255,60,110,0.3); color:#ff7096; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:16px; display:none; }
 
-  /* DASHBOARD */
-  #dashboardPage { display: none; }
-  .topbar { background: #1e293b; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 100; }
-  .topbar h1 { font-size: 20px; color: #f8fafc; }
-  .btn-logout { padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+/* DASHBOARD */
+#dashboardPage { display:none; }
+.topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:0 28px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:200; }
+.topbar-left { display:flex; align-items:center; gap:16px; }
+.topbar h1 { font-size:18px; font-weight:800; } .topbar h1 span { color:var(--accent); }
+.online-pill { display:flex; align-items:center; gap:6px; background:rgba(0,229,160,0.08); border:1px solid rgba(0,229,160,0.2); border-radius:20px; padding:4px 12px; font-size:12px; color:var(--success); font-family:'JetBrains Mono',monospace; }
+.online-dot { width:6px; height:6px; background:var(--success); border-radius:50%; animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+.btn-logout { padding:7px 16px; background:rgba(255,60,110,0.1); border:1px solid rgba(255,60,110,0.3); color:var(--accent2); border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:'Syne',sans-serif; transition:all 0.2s; }
+.btn-logout:hover { background:rgba(255,60,110,0.2); }
 
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; padding: 24px; }
-  .stat-card { background: #1e293b; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #334155; }
-  .stat-card .number { font-size: 32px; font-weight: 700; color: #6366f1; }
-  .stat-card .label { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+/* STATS */
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; padding:24px 28px 0; }
+.stat-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; transition:all 0.2s; }
+.stat-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.stat-number { font-size:36px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1; }
+.stat-label { font-size:11px; color:var(--muted); margin-top:6px; text-transform:uppercase; letter-spacing:0.08em; }
+.stat-card.danger .stat-number { color:var(--danger); } .stat-card.success .stat-number { color:var(--success); }
+.stat-card.warning .stat-number { color:var(--warning); } .stat-card.accent .stat-number { color:var(--accent); }
 
-  .tabs { display: flex; gap: 8px; padding: 0 24px 16px; flex-wrap: wrap; }
-  .tab { padding: 8px 20px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; cursor: pointer; font-size: 13px; color: #94a3b8; transition: all 0.2s; }
-  .tab.active { background: #6366f1; border-color: #6366f1; color: white; }
+/* TABS */
+.tabs { display:flex; gap:4px; padding:20px 28px 0; border-bottom:1px solid var(--border); overflow-x:auto; }
+.tab { padding:10px 20px; background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); font-family:'Syne',sans-serif; transition:all 0.2s; white-space:nowrap; margin-bottom:-1px; }
+.tab:hover { color:var(--text); } .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
 
-  .content { padding: 0 24px 24px; }
-  .section { display: none; }
-  .section.active { display: block; }
+/* TOOLBAR */
+.toolbar { display:flex; align-items:center; gap:10px; padding:16px 28px; flex-wrap:wrap; }
+.search-box { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 14px; flex:1; min-width:200px; max-width:360px; }
+.search-box input { background:none; border:none; outline:none; color:var(--text); font-size:13px; font-family:'Syne',sans-serif; width:100%; }
+.search-box input::placeholder { color:var(--muted); }
+.filter-select { padding:8px 14px; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--text); font-size:13px; font-family:'Syne',sans-serif; outline:none; cursor:pointer; }
+.btn { padding:8px 16px; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; font-family:'Syne',sans-serif; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px; }
+.btn-primary { background:var(--accent); color:#080c14; } .btn-primary:hover { background:#33ddff; }
+.btn-danger { background:rgba(255,60,110,0.12); color:var(--danger); border:1px solid rgba(255,60,110,0.25); } .btn-danger:hover { background:rgba(255,60,110,0.25); }
+.btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); } .btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+.btn-sm { padding:5px 12px; font-size:12px; }
 
-  table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 12px; overflow: hidden; }
-  th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-  td { padding: 12px 16px; border-bottom: 1px solid #334155; font-size: 13px; vertical-align: top; max-width: 300px; word-break: break-word; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #263348; }
+/* SELECT BAR */
+.select-bar { display:none; align-items:center; gap:12px; padding:10px 28px; background:rgba(0,212,255,0.06); border-bottom:1px solid rgba(0,212,255,0.15); }
+.select-bar.visible { display:flex; }
+.select-count { font-size:13px; font-weight:600; color:var(--accent); font-family:'JetBrains Mono',monospace; }
 
-  .badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-  .badge-pending { background: #78350f; color: #fcd34d; }
-  .badge-resolved { background: #14532d; color: #86efac; }
-  .badge-ignored { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+/* TABLE */
+.content { padding:0 28px 28px; }
+.section { display:none; } .section.active { display:block; }
+.table-wrap { overflow-x:auto; border-radius:14px; border:1px solid var(--border); }
+table { width:100%; border-collapse:collapse; background:var(--surface); }
+thead tr { background:var(--surface2); }
+th { padding:12px 16px; text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:600; white-space:nowrap; }
+td { padding:12px 16px; border-top:1px solid var(--border); font-size:13px; vertical-align:middle; }
+tr:hover td { background:rgba(255,255,255,0.02); }
+.cb { width:16px; height:16px; cursor:pointer; accent-color:var(--accent); }
 
-  .btn-delete { padding: 5px 12px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .btn-delete:hover { background: #dc2626; }
-  .btn-resolve { padding: 5px 12px; background: #22c55e; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 4px; }
-  .btn-ignore { padding: 5px 12px; background: #64748b; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .btn-ban { padding: 5px 12px; background: #f97316; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+/* MEDIA */
+.media-thumb { width:60px; height:60px; border-radius:8px; object-fit:cover; border:1px solid var(--border); cursor:pointer; transition:transform 0.2s; display:block; }
+.media-thumb:hover { transform:scale(1.08); border-color:var(--accent); }
+.video-wrap { position:relative; display:inline-block; width:60px; height:60px; }
+.video-wrap video { width:60px; height:60px; border-radius:8px; object-fit:cover; border:1px solid var(--border); cursor:pointer; }
+.play-badge { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.4); border-radius:8px; font-size:20px; pointer-events:none; }
 
-  .loading { text-align: center; padding: 40px; color: #94a3b8; }
-  .empty { text-align: center; padding: 40px; color: #475569; }
+/* LIGHTBOX */
+.lightbox { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.94); z-index:1000; align-items:center; justify-content:center; flex-direction:column; gap:16px; }
+.lightbox.open { display:flex; }
+.lightbox-close { position:absolute; top:20px; right:24px; font-size:32px; cursor:pointer; color:var(--muted); line-height:1; transition:color 0.2s; }
+.lightbox-close:hover { color:var(--text); }
+.lightbox-media img, .lightbox-media video { max-width:90vw; max-height:78vh; border-radius:12px; border:1px solid var(--border); display:block; }
+.lightbox-actions { display:flex; gap:12px; }
 
-  .refresh-btn { padding: 8px 16px; background: #334155; color: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; margin-bottom: 16px; }
-  .refresh-btn:hover { background: #475569; }
+/* MODAL */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:500; align-items:center; justify-content:center; }
+.modal-overlay.open { display:flex; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:32px; max-width:380px; width:90%; text-align:center; }
+.modal h3 { font-size:18px; margin-bottom:8px; }
+.modal p { color:var(--muted); font-size:14px; margin-bottom:24px; }
+.modal-btns { display:flex; gap:10px; justify-content:center; }
 
-  .text-truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .category-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #312e81; color: #a5b4fc; }
+/* MISC */
+.text-clip { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.text-mono { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); }
+.text-muted { color:var(--muted); font-size:12px; }
+.empty-state { text-align:center; padding:60px 20px; color:var(--muted); }
+.empty-state .icon { font-size:40px; margin-bottom:12px; }
+.loading-state { text-align:center; padding:60px 20px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+.badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+.badge-love { background:rgba(255,60,110,0.15); color:#ff6b8a; }
+.badge-college { background:rgba(124,58,237,0.15); color:#a78bfa; }
+.badge-secrets { background:rgba(0,212,255,0.12); color:var(--accent); }
+.badge-life { background:rgba(0,229,160,0.12); color:var(--success); }
+.badge-pending { background:rgba(255,176,32,0.12); color:var(--warning); }
+.badge-resolved { background:rgba(0,229,160,0.12); color:var(--success); }
+.badge-ignored { background:rgba(74,96,128,0.2); color:var(--muted); }
 </style>
 </head>
 <body>
 
-<!-- LOGIN PAGE -->
+<!-- LOGIN -->
 <div id="loginPage">
   <div class="login-box">
-    <h1>🔐 Admin Panel</h1>
-    <p>Whispero Nepal — Secure Access</p>
-    <div class="error-msg" id="errorMsg">Invalid email or password</div>
-    <div class="form-group">
-      <label>Email Address</label>
-      <input type="email" id="emailInput" placeholder="your@email.com" />
+    <div class="login-logo">
+      <h1>Whisper<span>o</span></h1>
+      <p>// admin_panel_v2</p>
     </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" id="passwordInput" placeholder="••••••••" onkeydown="if(event.key==='Enter') login()" />
-    </div>
-    <button class="btn-login" onclick="login()">Sign In</button>
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="emailInput" placeholder="admin@email.com"/></div>
+    <div class="form-group"><label>Password</label><input type="password" id="passwordInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"/></div>
+    <button class="btn-login" onclick="login()">Sign In →</button>
   </div>
 </div>
 
-<!-- DASHBOARD PAGE -->
+<!-- DASHBOARD -->
 <div id="dashboardPage">
   <div class="topbar">
-    <h1>⚡ Whispero Admin</h1>
+    <div class="topbar-left">
+      <h1>Whisper<span>o</span> Admin</h1>
+      <div class="online-pill"><div class="online-dot"></div><span id="onlineCount">0</span> online</div>
+    </div>
     <button class="btn-logout" onclick="logout()">Logout</button>
   </div>
 
   <div class="stats-grid">
-    <div class="stat-card"><div class="number" id="statConfessions">-</div><div class="label">Confessions</div></div>
-    <div class="stat-card"><div class="number" id="statComments">-</div><div class="label">Comments</div></div>
-    <div class="stat-card"><div class="number" id="statReports">-</div><div class="label">Total Reports</div></div>
-    <div class="stat-card"><div class="number" id="statPending">-</div><div class="label">Pending Reports</div></div>
-    <div class="stat-card"><div class="number" id="statSessions">-</div><div class="label">Sessions</div></div>
-    <div class="stat-card"><div class="number" id="statBanned">-</div><div class="label">Banned</div></div>
+    <div class="stat-card accent"><div class="stat-number" id="statConfessions">—</div><div class="stat-label">Confessions</div></div>
+    <div class="stat-card"><div class="stat-number" id="statComments">—</div><div class="stat-label">Comments</div></div>
+    <div class="stat-card warning"><div class="stat-number" id="statPending">—</div><div class="stat-label">Pending Reports</div></div>
+    <div class="stat-card danger"><div class="stat-number" id="statReports">—</div><div class="stat-label">Total Reports</div></div>
+    <div class="stat-card"><div class="stat-number" id="statSessions">—</div><div class="stat-label">Sessions</div></div>
+    <div class="stat-card danger"><div class="stat-number" id="statBanned">—</div><div class="stat-label">Banned</div></div>
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('confessions')">📝 Confessions</div>
-    <div class="tab" onclick="switchTab('comments')">💬 Comments</div>
-    <div class="tab" onclick="switchTab('reports')">🚨 Reports</div>
-    <div class="tab" onclick="switchTab('sessions')">👥 Sessions</div>
-    <div class="tab" onclick="switchTab('images')">🖼️ Images</div>
+    <div class="tab active" onclick="switchTab('confessions',this)">📝 Confessions</div>
+    <div class="tab" onclick="switchTab('comments',this)">💬 Comments</div>
+    <div class="tab" onclick="switchTab('reports',this)">🚨 Reports</div>
+    <div class="tab" onclick="switchTab('sessions',this)">👥 Sessions</div>
+    <div class="tab" onclick="switchTab('images',this)">🖼️ Media</div>
   </div>
 
-  <div class="content">
-
-    <!-- CONFESSIONS -->
-    <div class="section active" id="section-confessions">
-      <button class="refresh-btn" onclick="loadConfessions()">🔄 Refresh</button>
-      <table>
-        <thead><tr><th>Text</th><th>Category</th><th>Nickname</th><th>Likes</th><th>Date</th><th>Action</th></tr></thead>
-        <tbody id="confessionsBody"><tr><td colspan="6" class="loading">Loading...</td></tr></tbody>
-      </table>
+  <!-- CONFESSIONS SECTION -->
+  <div class="section active" id="section-confessions">
+    <div class="toolbar">
+      <div class="search-box">🔍 <input type="text" id="searchConf" placeholder="Search confessions..." oninput="filterConf()"/></div>
+      <select class="filter-select" id="filterCat" onchange="filterConf()">
+        <option value="">All Categories</option>
+        <option value="love">💕 Love</option>
+        <option value="college">🎓 College</option>
+        <option value="secrets">🤫 Secrets</option>
+        <option value="life">🌱 Life</option>
+      </select>
+      <button class="btn btn-secondary" onclick="loadConfessions()">🔄 Refresh</button>
     </div>
-
-    <!-- COMMENTS -->
-    <div class="section" id="section-comments">
-      <button class="refresh-btn" onclick="loadComments()">🔄 Refresh</button>
-      <table>
-        <thead><tr><th>Text</th><th>Nickname</th><th>Date</th><th>Action</th></tr></thead>
-        <tbody id="commentsBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
-      </table>
+    <div class="select-bar" id="selectBarConf">
+      <input type="checkbox" class="cb" onchange="toggleAll('.conf-cb',this,'updateConfSel')"/>
+      <span class="select-count" id="confSelCount">0 selected</span>
+      <button class="btn btn-danger btn-sm" onclick="bulkDelete('confessions')">🗑️ Delete Selected</button>
+      <button class="btn btn-secondary btn-sm" onclick="selectAll('.conf-cb','updateConfSel')">Select All</button>
     </div>
+    <div class="content"><div class="table-wrap"><table>
+      <thead><tr>
+        <th><input type="checkbox" class="cb" onchange="toggleAll('.conf-cb',this,'updateConfSel')"/></th>
+        <th>Media</th><th>Text</th><th>Category</th><th>Nickname</th><th>❤️</th><th>Date</th><th>Delete</th>
+      </tr></thead>
+      <tbody id="confessionsBody"><tr><td colspan="8" class="loading-state">Loading...</td></tr></tbody>
+    </table></div></div>
+  </div>
 
-    <!-- REPORTS -->
-    <div class="section" id="section-reports">
-      <button class="refresh-btn" onclick="loadReports()">🔄 Refresh</button>
-      <table>
-        <thead><tr><th>Type</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
-        <tbody id="reportsBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
-      </table>
+  <!-- COMMENTS SECTION -->
+  <div class="section" id="section-comments">
+    <div class="toolbar">
+      <div class="search-box">🔍 <input type="text" id="searchComm" placeholder="Search comments..." oninput="filterComm()"/></div>
+      <button class="btn btn-secondary" onclick="loadComments()">🔄 Refresh</button>
     </div>
-
-    <!-- SESSIONS -->
-    <div class="section" id="section-sessions">
-      <button class="refresh-btn" onclick="loadSessions()">🔄 Refresh</button>
-      <table>
-        <thead><tr><th>Session ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody id="sessionsBody"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
-      </table>
+    <div class="select-bar" id="selectBarComm">
+      <input type="checkbox" class="cb" onchange="toggleAll('.comm-cb',this,'updateCommSel')"/>
+      <span class="select-count" id="commSelCount">0 selected</span>
+      <button class="btn btn-danger btn-sm" onclick="bulkDelete('comments')">🗑️ Delete Selected</button>
     </div>
+    <div class="content"><div class="table-wrap"><table>
+      <thead><tr>
+        <th><input type="checkbox" class="cb" onchange="toggleAll('.comm-cb',this,'updateCommSel')"/></th>
+        <th>Text</th><th>Nickname</th><th>Date</th><th>Delete</th>
+      </tr></thead>
+      <tbody id="commentsBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+    </table></div></div>
+  </div>
 
-    <!-- IMAGES -->
-    <div class="section" id="section-images">
-      <button class="refresh-btn" onclick="loadImages()">🔄 Refresh</button>
-      <table>
-        <thead><tr><th>Filename</th><th>Type</th><th>Size</th><th>Date</th><th>Action</th></tr></thead>
-        <tbody id="imagesBody"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
-      </table>
+  <!-- REPORTS SECTION -->
+  <div class="section" id="section-reports">
+    <div class="toolbar"><button class="btn btn-secondary" onclick="loadReports()">🔄 Refresh</button></div>
+    <div class="content"><div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th>Reason</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+      <tbody id="reportsBody"><tr><td colspan="5" class="loading-state">Loading...</td></tr></tbody>
+    </table></div></div>
+  </div>
+
+  <!-- SESSIONS SECTION -->
+  <div class="section" id="section-sessions">
+    <div class="toolbar"><button class="btn btn-secondary" onclick="loadSessions()">🔄 Refresh</button></div>
+    <div class="content"><div class="table-wrap"><table>
+      <thead><tr><th>Session ID</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="sessionsBody"><tr><td colspan="4" class="loading-state">Loading...</td></tr></tbody>
+    </table></div></div>
+  </div>
+
+  <!-- MEDIA SECTION -->
+  <div class="section" id="section-images">
+    <div class="toolbar"><button class="btn btn-secondary" onclick="loadImages()">🔄 Refresh</button></div>
+    <div class="content"><div class="table-wrap"><table>
+      <thead><tr><th>Preview</th><th>Filename</th><th>Type</th><th>Size</th><th>Date</th><th>Delete</th></tr></thead>
+      <tbody id="imagesBody"><tr><td colspan="6" class="loading-state">Loading...</td></tr></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <div class="lightbox-media" id="lightboxMedia"></div>
+  <div class="lightbox-actions">
+    <button class="btn btn-danger" id="lbDeleteBtn" onclick="lbDelete()">🗑️ Delete This Post</button>
+    <button class="btn btn-secondary" onclick="closeLightbox()">✕ Close</button>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3 id="modalTitle">Are you sure?</h3>
+    <p id="modalDesc">This cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="btn btn-danger" id="modalOk">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
     </div>
-
   </div>
 </div>
 
 <script>
-  // ⚠️ CHANGE THIS to your Render backend URL
-  const BACKEND_URL = 'https://my-website-g7nn.onrender.com';
+// ⚠️ YOUR BACKEND URL
+const BACKEND_URL = 'https://my-website-g7nn.onrender.com';
 
-  let token = localStorage.getItem('admin_token') || '';
+let token = localStorage.getItem('admin_token') || '';
+let allConfessions = [], allComments = [];
+let lbDeleteId = null;
 
-  // Auto-login if token exists
-  if (token) showDashboard();
+if (token) showDashboard();
 
-  async function login() {
-    const email = document.getElementById('emailInput').value.trim();
-    const password = document.getElementById('passwordInput').value.trim();
-    const errorMsg = document.getElementById('errorMsg');
-    errorMsg.style.display = 'none';
+// AUTH
+async function login() {
+  const email = document.getElementById('emailInput').value.trim();
+  const password = document.getElementById('passwordInput').value.trim();
+  const err = document.getElementById('errorMsg');
+  err.style.display = 'none';
+  if (!email || !password) { err.textContent='Enter email and password'; err.style.display='block'; return; }
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
+    if (!res.ok) { err.textContent='Invalid email or password'; err.style.display='block'; return; }
+    const data = await res.json();
+    token = data.access_token;
+    localStorage.setItem('admin_token', token);
+    showDashboard();
+  } catch(e) { err.textContent='Cannot connect to server'; err.style.display='block'; }
+}
 
-    if (!email || !password) {
-      errorMsg.textContent = 'Please enter email and password';
-      errorMsg.style.display = 'block';
-      return;
-    }
+function logout() {
+  token=''; localStorage.removeItem('admin_token');
+  document.getElementById('dashboardPage').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+}
 
+function showDashboard() {
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('dashboardPage').style.display='block';
+  loadAnalytics(); loadConfessions(); startOnlineCount();
+}
+
+// API HELPERS
+async function apiGet(path) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {headers:{'Authorization':`Bearer ${token}`}});
+  if (res.status===401) { logout(); return null; }
+  return res.json();
+}
+async function apiDelete(path) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {method:'DELETE', headers:{'Authorization':`Bearer ${token}`}});
+  return res.ok;
+}
+async function apiPost(path) {
+  const res = await fetch(`${BACKEND_URL}${path}`, {method:'POST', headers:{'Authorization':`Bearer ${token}`}});
+  return res.ok;
+}
+
+// ONLINE COUNT — updates every 10 seconds
+async function startOnlineCount() {
+  const tick = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
+      const res = await fetch(`${BACKEND_URL}/api/online-count`);
+      const d = await res.json();
+      document.getElementById('onlineCount').textContent = d.online || 0;
+    } catch(e){}
+  };
+  tick(); setInterval(tick, 10000);
+}
 
-      if (!res.ok) {
-        errorMsg.textContent = 'Invalid email or password';
-        errorMsg.style.display = 'block';
-        return;
+// ANALYTICS
+async function loadAnalytics() {
+  const d = await apiGet('/api/admin/analytics');
+  if (!d) return;
+  document.getElementById('statConfessions').textContent = d.total_confessions;
+  document.getElementById('statComments').textContent = d.total_comments;
+  document.getElementById('statReports').textContent = d.total_reports;
+  document.getElementById('statPending').textContent = d.pending_reports;
+  document.getElementById('statSessions').textContent = d.total_sessions;
+  document.getElementById('statBanned').textContent = d.total_banned;
+}
+
+// TABS
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`section-${name}`).classList.add('active');
+  const loaders = {confessions:loadConfessions, comments:loadComments, reports:loadReports, sessions:loadSessions, images:loadImages};
+  loaders[name]();
+}
+
+// CONFESSIONS
+async function loadConfessions() {
+  const tbody = document.getElementById('confessionsBody');
+  tbody.innerHTML = '<tr><td colspan="8" class="loading-state">Loading...</td></tr>';
+  const data = await apiGet('/api/confessions?limit=100');
+  if (!data||!data.length) { tbody.innerHTML='<tr><td colspan="8" class="empty-state"><div class="icon">📭</div>No confessions yet</td></tr>'; return; }
+  allConfessions = data;
+  renderConfessions(data);
+}
+
+function renderConfessions(data) {
+  const tbody = document.getElementById('confessionsBody');
+  if (!data.length) { tbody.innerHTML='<tr><td colspan="8" class="empty-state"><div class="icon">🔍</div>No results</td></tr>'; return; }
+  tbody.innerHTML = data.map(c => {
+    let mediaHtml = '<span class="text-muted">—</span>';
+    if (c.media_url) {
+      const src = `${BACKEND_URL}/api/files/${c.media_url}`;
+      if (c.media_type==='video') {
+        mediaHtml = `<div class="video-wrap" onclick="openLightbox('${c.id}','${c.media_url}','video')"><video src="${src}" muted preload="metadata"></video><div class="play-badge">▶</div></div>`;
+      } else {
+        mediaHtml = `<img class="media-thumb" src="${src}" onclick="openLightbox('${c.id}','${c.media_url}','image')" onerror="this.style.display='none'"/>`;
       }
-
-      const data = await res.json();
-      token = data.access_token;
-      localStorage.setItem('admin_token', token);
-      showDashboard();
-    } catch (e) {
-      errorMsg.textContent = 'Cannot connect to server. Check your backend URL.';
-      errorMsg.style.display = 'block';
     }
-  }
+    return `<tr>
+      <td><input type="checkbox" class="cb conf-cb" value="${c.id}" onchange="updateConfSel()"/></td>
+      <td>${mediaHtml}</td>
+      <td><div class="text-clip" title="${c.text}">${c.text}</div></td>
+      <td><span class="badge badge-${c.category}">${c.category}</span></td>
+      <td class="text-muted">${c.nickname||'—'}</td>
+      <td class="text-mono">${c.likes}</td>
+      <td class="text-mono">${c.created_at.slice(0,10)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteOne('confession','${c.id}',this)">🗑️</button></td>
+    </tr>`;
+  }).join('');
+}
 
-  function logout() {
-    token = '';
-    localStorage.removeItem('admin_token');
-    document.getElementById('dashboardPage').style.display = 'none';
-    document.getElementById('loginPage').style.display = 'flex';
-  }
+function filterConf() {
+  const q = document.getElementById('searchConf').value.toLowerCase();
+  const cat = document.getElementById('filterCat').value;
+  const filtered = allConfessions.filter(c =>
+    (!q || c.text.toLowerCase().includes(q) || (c.nickname||'').toLowerCase().includes(q)) &&
+    (!cat || c.category===cat)
+  );
+  renderConfessions(filtered);
+}
 
-  function showDashboard() {
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('dashboardPage').style.display = 'block';
+function updateConfSel() {
+  const n = document.querySelectorAll('.conf-cb:checked').length;
+  document.getElementById('confSelCount').textContent = `${n} selected`;
+  document.getElementById('selectBarConf').classList.toggle('visible', n>0);
+}
+
+// COMMENTS
+async function loadComments() {
+  const tbody = document.getElementById('commentsBody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...</td></tr>';
+  const data = await apiGet('/api/admin/comments?limit=100');
+  if (!data||!data.length) { tbody.innerHTML='<tr><td colspan="5" class="empty-state"><div class="icon">📭</div>No comments</td></tr>'; return; }
+  allComments = data;
+  renderComments(data);
+}
+
+function renderComments(data) {
+  const tbody = document.getElementById('commentsBody');
+  if (!data.length) { tbody.innerHTML='<tr><td colspan="5" class="empty-state"><div class="icon">🔍</div>No results</td></tr>'; return; }
+  tbody.innerHTML = data.map(c=>`<tr>
+    <td><input type="checkbox" class="cb comm-cb" value="${c.id}" onchange="updateCommSel()"/></td>
+    <td><div class="text-clip" title="${c.text}">${c.text}</div></td>
+    <td class="text-muted">${c.nickname||'—'}</td>
+    <td class="text-mono">${c.created_at.slice(0,10)}</td>
+    <td><button class="btn btn-danger btn-sm" onclick="deleteOne('comment','${c.id}',this)">🗑️</button></td>
+  </tr>`).join('');
+}
+
+function filterComm() {
+  const q = document.getElementById('searchComm').value.toLowerCase();
+  renderComments(allComments.filter(c=>c.text.toLowerCase().includes(q)||(c.nickname||'').toLowerCase().includes(q)));
+}
+
+function updateCommSel() {
+  const n = document.querySelectorAll('.comm-cb:checked').length;
+  document.getElementById('commSelCount').textContent = `${n} selected`;
+  document.getElementById('selectBarComm').classList.toggle('visible', n>0);
+}
+
+// CHECKBOX HELPERS
+function toggleAll(selector, master, updateFn) {
+  document.querySelectorAll(selector).forEach(cb=>cb.checked=master.checked);
+  window[updateFn]();
+}
+function selectAll(selector, updateFn) {
+  document.querySelectorAll(selector).forEach(cb=>cb.checked=true);
+  window[updateFn]();
+}
+
+// DELETE SINGLE
+function deleteOne(type, id, btn) {
+  showModal(`Delete this ${type}?`, 'This cannot be undone.', async () => {
+    btn.disabled=true; btn.textContent='...';
+    const path = type==='confession' ? `/api/admin/confessions/${id}` : `/api/admin/comments/${id}`;
+    const ok = await apiDelete(path);
+    if (ok) { btn.closest('tr').remove(); loadAnalytics(); }
+    else { btn.disabled=false; btn.textContent='🗑️'; }
+  });
+}
+
+// BULK DELETE
+async function bulkDelete(type) {
+  const selector = type==='confessions' ? '.conf-cb:checked' : '.comm-cb:checked';
+  const ids = [...document.querySelectorAll(selector)].map(cb=>cb.value);
+  if (!ids.length) return;
+  showModal(`Delete ${ids.length} ${type}?`, 'This cannot be undone.', async () => {
+    const basePath = type==='confessions' ? '/api/admin/confessions/' : '/api/admin/comments/';
+    await Promise.all(ids.map(id=>apiDelete(`${basePath}${id}`)));
+    if (type==='confessions') loadConfessions();
+    else loadComments();
     loadAnalytics();
-    loadConfessions();
-  }
+  });
+}
 
-  async function apiGet(path) {
-    const res = await fetch(`${BACKEND_URL}${path}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.status === 401) { logout(); return null; }
-    return res.json();
-  }
+// REPORTS
+async function loadReports() {
+  const tbody = document.getElementById('reportsBody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading-state">Loading...</td></tr>';
+  const data = await apiGet('/api/admin/reports?limit=50');
+  if (!data||!data.length) { tbody.innerHTML='<tr><td colspan="5" class="empty-state"><div class="icon">✅</div>No reports</td></tr>'; return; }
+  tbody.innerHTML = data.map(r=>`<tr>
+    <td class="text-muted">${r.target_type}</td>
+    <td><div class="text-clip" title="${r.reason}">${r.reason}</div></td>
+    <td><span class="badge badge-${r.status}">${r.status}</span></td>
+    <td class="text-mono">${r.created_at.slice(0,10)}</td>
+    <td style="display:flex;gap:6px;flex-wrap:wrap">
+      ${r.status==='pending'?`
+        <button class="btn btn-sm" style="background:rgba(0,229,160,0.1);color:var(--success);border:1px solid rgba(0,229,160,0.2)" onclick="resolveReport('${r.id}','resolve',this)">✓ Resolve</button>
+        <button class="btn btn-secondary btn-sm" onclick="resolveReport('${r.id}','ignore',this)">Ignore</button>
+      `:'—'}
+    </td>
+  </tr>`).join('');
+}
 
-  async function apiDelete(path) {
-    const res = await fetch(`${BACKEND_URL}${path}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    return res.ok;
-  }
+async function resolveReport(id, action, btn) {
+  btn.disabled=true;
+  const ok = await apiPost(`/api/admin/reports/${id}/resolve?action=${action}`);
+  if (ok) loadReports(); else btn.disabled=false;
+}
 
-  async function loadAnalytics() {
-    const data = await apiGet('/api/admin/analytics');
-    if (!data) return;
-    document.getElementById('statConfessions').textContent = data.total_confessions;
-    document.getElementById('statComments').textContent = data.total_comments;
-    document.getElementById('statReports').textContent = data.total_reports;
-    document.getElementById('statPending').textContent = data.pending_reports;
-    document.getElementById('statSessions').textContent = data.total_sessions;
-    document.getElementById('statBanned').textContent = data.total_banned;
-  }
+// SESSIONS
+async function loadSessions() {
+  const tbody = document.getElementById('sessionsBody');
+  tbody.innerHTML = '<tr><td colspan="4" class="loading-state">Loading...</td></tr>';
+  const data = await apiGet('/api/admin/sessions?limit=50');
+  if (!data||!data.length) { tbody.innerHTML='<tr><td colspan="4" class="empty-state"><div class="icon">👥</div>No sessions</td></tr>'; return; }
+  tbody.innerHTML = data.map(s=>`<tr>
+    <td class="text-mono">${s.id.slice(0,18)}...</td>
+    <td class="text-mono">${s.created_at.slice(0,10)}</td>
+    <td>${s.is_banned?'<span class="badge badge-pending">Banned</span>':'<span class="badge badge-resolved">Active</span>'}</td>
+    <td>${!s.is_banned?`<button class="btn btn-danger btn-sm" onclick="banSession('${s.id}',this)">🚫 Ban</button>`:'—'}</td>
+  </tr>`).join('');
+}
 
-  async function loadConfessions() {
-    const tbody = document.getElementById('confessionsBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
-    const data = await apiGet('/api/confessions?limit=50');
-    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No confessions found</td></tr>'; return; }
-    tbody.innerHTML = data.map(c => `
-      <tr>
-        <td class="text-truncate" title="${c.text}">${c.text}</td>
-        <td><span class="category-badge">${c.category}</span></td>
-        <td>${c.nickname || '-'}</td>
-        <td>❤️ ${c.likes}</td>
-        <td>${c.created_at.slice(0,10)}</td>
-        <td><button class="btn-delete" onclick="deleteConfession('${c.id}', this)">Delete</button></td>
-      </tr>`).join('');
-  }
+async function banSession(id, btn) {
+  const reason = prompt('Reason for ban?');
+  if (!reason) return;
+  btn.disabled=true; btn.textContent='...';
+  const res = await fetch(`${BACKEND_URL}/api/admin/ban-session?session_id=${id}&reason=${encodeURIComponent(reason)}`, {
+    method:'POST', headers:{'Authorization':`Bearer ${token}`}
+  });
+  if (res.ok) { loadSessions(); loadAnalytics(); }
+  else { btn.disabled=false; btn.textContent='🚫 Ban'; }
+}
 
-  async function deleteConfession(id, btn) {
-    if (!confirm('Delete this confession?')) return;
-    btn.disabled = true; btn.textContent = '...';
-    const ok = await apiDelete(`/api/admin/confessions/${id}`);
-    if (ok) { btn.closest('tr').remove(); loadAnalytics(); }
-    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
-  }
+// IMAGES / MEDIA
+async function loadImages() {
+  const tbody = document.getElementById('imagesBody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading-state">Loading...</td></tr>';
+  const data = await apiGet('/api/admin/images?limit=50');
+  if (!data||!data.length) { tbody.innerHTML='<tr><td colspan="6" class="empty-state"><div class="icon">🖼️</div>No media</td></tr>'; return; }
+  tbody.innerHTML = data.map(f => {
+    const isVideo = f.content_type&&f.content_type.startsWith('video/');
+    const src = `${BACKEND_URL}/api/files/${f.storage_path}`;
+    const preview = isVideo
+      ? `<div class="video-wrap" onclick="openMediaLightbox('${f.storage_path}','video')"><video src="${src}" muted preload="metadata"></video><div class="play-badge">▶</div></div>`
+      : `<img class="media-thumb" src="${src}" onclick="openMediaLightbox('${f.storage_path}','image')" onerror="this.style.display='none'"/>`;
+    return `<tr>
+      <td>${preview}</td>
+      <td class="text-clip">${f.original_filename||'—'}</td>
+      <td class="text-muted">${f.content_type||'—'}</td>
+      <td class="text-mono">${f.size?(f.size/1024).toFixed(1)+' KB':'—'}</td>
+      <td class="text-mono">${f.created_at.slice(0,10)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteImg('${f.id}',this)">🗑️</button></td>
+    </tr>`;
+  }).join('');
+}
 
-  async function loadComments() {
-    const tbody = document.getElementById('commentsBody');
-    tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
-    const data = await apiGet('/api/admin/comments?limit=50');
-    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No comments found</td></tr>'; return; }
-    tbody.innerHTML = data.map(c => `
-      <tr>
-        <td class="text-truncate" title="${c.text}">${c.text}</td>
-        <td>${c.nickname || '-'}</td>
-        <td>${c.created_at.slice(0,10)}</td>
-        <td><button class="btn-delete" onclick="deleteComment('${c.id}', this)">Delete</button></td>
-      </tr>`).join('');
-  }
-
-  async function deleteComment(id, btn) {
-    if (!confirm('Delete this comment?')) return;
-    btn.disabled = true; btn.textContent = '...';
-    const ok = await apiDelete(`/api/admin/comments/${id}`);
-    if (ok) { btn.closest('tr').remove(); loadAnalytics(); }
-    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
-  }
-
-  async function loadReports() {
-    const tbody = document.getElementById('reportsBody');
-    tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
-    const data = await apiGet('/api/admin/reports?limit=50');
-    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No reports found</td></tr>'; return; }
-    tbody.innerHTML = data.map(r => `
-      <tr>
-        <td>${r.target_type}</td>
-        <td class="text-truncate" title="${r.reason}">${r.reason}</td>
-        <td><span class="badge badge-${r.status}">${r.status}</span></td>
-        <td>${r.created_at.slice(0,10)}</td>
-        <td>
-          ${r.status === 'pending' ? `
-            <button class="btn-resolve" onclick="resolveReport('${r.id}', 'resolve', this)">✓ Resolve</button>
-            <button class="btn-ignore" onclick="resolveReport('${r.id}', 'ignore', this)">Ignore</button>
-          ` : '-'}
-        </td>
-      </tr>`).join('');
-  }
-
-  async function resolveReport(id, action, btn) {
-    btn.disabled = true;
-    const res = await fetch(`${BACKEND_URL}/api/admin/reports/${id}/resolve?action=${action}`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) loadReports();
-    else { btn.disabled = false; alert('Failed'); }
-  }
-
-  async function loadSessions() {
-    const tbody = document.getElementById('sessionsBody');
-    tbody.innerHTML = '<tr><td colspan="4" class="loading">Loading...</td></tr>';
-    const data = await apiGet('/api/admin/sessions?limit=50');
-    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="empty">No sessions found</td></tr>'; return; }
-    tbody.innerHTML = data.map(s => `
-      <tr>
-        <td style="font-size:11px;font-family:monospace">${s.id}</td>
-        <td>${s.created_at.slice(0,10)}</td>
-        <td>${s.is_banned ? '<span class="badge badge-pending">Banned</span>' : '<span class="badge badge-resolved">Active</span>'}</td>
-        <td>${!s.is_banned ? `<button class="btn-ban" onclick="banSession('${s.id}', this)">Ban</button>` : '-'}</td>
-      </tr>`).join('');
-  }
-
-  async function banSession(id, btn) {
-    const reason = prompt('Reason for ban?');
-    if (!reason) return;
-    btn.disabled = true; btn.textContent = '...';
-    const res = await fetch(`${BACKEND_URL}/api/admin/ban-session?session_id=${id}&reason=${encodeURIComponent(reason)}`, {
-      method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) { loadSessions(); loadAnalytics(); }
-    else { btn.disabled = false; btn.textContent = 'Ban'; alert('Failed to ban'); }
-  }
-
-  async function loadImages() {
-    const tbody = document.getElementById('imagesBody');
-    tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading...</td></tr>';
-    const data = await apiGet('/api/admin/images?limit=50');
-    if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No images found</td></tr>'; return; }
-    tbody.innerHTML = data.map(f => `
-      <tr>
-        <td class="text-truncate">${f.original_filename || '-'}</td>
-        <td>${f.content_type || '-'}</td>
-        <td>${f.size ? (f.size/1024).toFixed(1) + ' KB' : '-'}</td>
-        <td>${f.created_at.slice(0,10)}</td>
-        <td><button class="btn-delete" onclick="deleteImage('${f.id}', this)">Delete</button></td>
-      </tr>`).join('');
-  }
-
-  async function deleteImage(id, btn) {
-    if (!confirm('Delete this file?')) return;
-    btn.disabled = true; btn.textContent = '...';
+async function deleteImg(id, btn) {
+  showModal('Delete this file?', 'This cannot be undone.', async () => {
+    btn.disabled=true; btn.textContent='...';
     const ok = await apiDelete(`/api/admin/images/${id}`);
     if (ok) btn.closest('tr').remove();
-    else { btn.disabled = false; btn.textContent = 'Delete'; alert('Failed to delete'); }
-  }
+    else { btn.disabled=false; btn.textContent='🗑️'; }
+  });
+}
 
-  function switchTab(name) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    event.target.classList.add('active');
-    document.getElementById(`section-${name}`).classList.add('active');
-    if (name === 'confessions') loadConfessions();
-    else if (name === 'comments') loadComments();
-    else if (name === 'reports') loadReports();
-    else if (name === 'sessions') loadSessions();
-    else if (name === 'images') loadImages();
-  }
+// LIGHTBOX — click image or video to see full size + delete option
+function openLightbox(confId, mediaPath, type) {
+  lbDeleteId = confId;
+  const src = `${BACKEND_URL}/api/files/${mediaPath}`;
+  const media = document.getElementById('lightboxMedia');
+  media.innerHTML = type==='video'
+    ? `<video controls autoplay src="${src}" style="max-width:90vw;max-height:75vh;border-radius:12px;display:block"></video>`
+    : `<img src="${src}" style="max-width:90vw;max-height:75vh;border-radius:12px;display:block"/>`;
+  document.getElementById('lbDeleteBtn').style.display='inline-flex';
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function openMediaLightbox(path, type) {
+  lbDeleteId = null;
+  const src = `${BACKEND_URL}/api/files/${path}`;
+  const media = document.getElementById('lightboxMedia');
+  media.innerHTML = type==='video'
+    ? `<video controls autoplay src="${src}" style="max-width:90vw;max-height:75vh;border-radius:12px;display:block"></video>`
+    : `<img src="${src}" style="max-width:90vw;max-height:75vh;border-radius:12px;display:block"/>`;
+  document.getElementById('lbDeleteBtn').style.display='none';
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightboxMedia').innerHTML='';
+}
+
+function lbDelete() {
+  if (!lbDeleteId) return;
+  closeLightbox();
+  showModal('Delete this confession?', 'This will permanently remove it.', async () => {
+    await apiDelete(`/api/admin/confessions/${lbDeleteId}`);
+    loadConfessions(); loadAnalytics();
+  });
+}
+
+// Clicking outside lightbox closes it
+document.getElementById('lightbox').addEventListener('click', function(e) {
+  if (e.target === this) closeLightbox();
+});
+
+// MODAL HELPER
+function showModal(title, desc, onConfirm) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalDesc').textContent = desc;
+  document.getElementById('modalOk').onclick = () => { closeModal(); onConfirm(); };
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeModal() { document.getElementById('confirmModal').classList.remove('open'); }
 </script>
 </body>
 </html>
