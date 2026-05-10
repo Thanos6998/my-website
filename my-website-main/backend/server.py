@@ -647,6 +647,28 @@ async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_tok
         raise HTTPException(status_code=404, detail="Comment not found")
     return {"message": "Comment deleted"}
 
+@api_router.delete("/chat-media/cleanup")
+async def cleanup_chat_media(
+    session_id: str = Header(..., alias="X-Session-Id"),
+    public_ids: List[str] = None
+):
+    """Delete chat media from Cloudinary when chat ends."""
+    if not public_ids:
+        return {"message": "Nothing to delete"}
+    for public_id in public_ids:
+        try:
+            try:
+                cloudinary.uploader.destroy(public_id, resource_type="image")
+            except:
+                cloudinary.uploader.destroy(public_id, resource_type="video")
+            await db.files.update_one(
+                {"public_id": public_id},
+                {"$set": {"is_deleted": True}}
+            )
+        except Exception as e:
+            logger.error(f"Failed to delete chat media {public_id}: {e}")
+    return {"message": f"Deleted {len(public_ids)} files"}
+
 @api_router.post("/upload-chat-media")
 async def upload_chat_media(
     session_id: str = Header(..., alias="X-Session-Id"),
@@ -681,7 +703,7 @@ async def upload_chat_media(
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return {"media_url": result["secure_url"]}
+    return {"media_url": result["secure_url"], "public_id": result["public_id"]}
 
 @api_router.post("/upload-compressed-media")
 async def upload_compressed_media(
