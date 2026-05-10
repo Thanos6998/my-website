@@ -262,6 +262,7 @@ class Confession(BaseModel):
     category: Literal["love", "college", "secrets", "life"]
     media_url: Optional[str] = None
     media_type: Optional[Literal["image", "video"]] = None
+    public_id: Optional[str] = None
     is_adult: bool = False
     city: Optional[str] = None
     likes: int = 0
@@ -345,20 +346,13 @@ def generate_nickname():
     import secrets
     return f"{secrets.choice(adjectives)} {secrets.choice(nouns)}"
 
-async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) -> dict:
-    """Upload bytes to Cloudinary and return result."""
-    if content_type and content_type.startswith("video/"):
-        resource_type = "video"
-    else:
-        resource_type = "image"
-    result = cloudinary.uploader.upload(
-        io.BytesIO(contents),
-        resource_type=resource_type,
-        folder=folder,
-        quality="auto",
-        fetch_format="auto"
-    )
-    return result
+async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
+    """Delete media from Cloudinary by public_id."""
+    try:
+        cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+        logger.info(f"Deleted from Cloudinary: {public_id}")
+    except Exception as e:
+        logger.error(f"Failed to delete from Cloudinary: {public_id} — {e}")
 
 # Routes
 @api_router.get("/")
@@ -396,9 +390,9 @@ async def create_confession(
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    media_url, media_type = None, None
+    media_url, media_type, media_public_id = None, None, None
     if media and media.filename:
-        media_url, media_type = await _process_confession_media(media, session_id)
+        media_url, media_type, media_public_id = await _process_confession_media(media, session_id)
 
     confession = Confession(
         session_id=session_id,
@@ -409,6 +403,7 @@ async def create_confession(
         city=city,
         media_url=media_url,
         media_type=media_type
+        public_id=media_public_id,
     )
     await db.confessions.insert_one(confession.model_dump())
     return confession
@@ -445,7 +440,7 @@ async def _process_confession_media(media: UploadFile, session_id: str):
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return result["secure_url"], media_type
+    return result["secure_url"], media_type, result["public_id"]
 
 @api_router.get("/confessions", response_model=List[Confession])
 async def get_confessions(
@@ -618,9 +613,16 @@ async def get_reports(skip: int = Query(0), limit: int = Query(50), admin: dict 
 
 @api_router.delete("/admin/confessions/{confession_id}")
 async def delete_confession(confession_id: str, admin: dict = Depends(verify_admin_token)):
-    result = await db.confessions.delete_one({"id": confession_id})
-    if result.deleted_count == 0:
+    confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
+    if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
+    
+    # Delete media from Cloudinary if exists
+    if confession.get("public_id"):
+        resource_type = "video" if confession.get("media_type") == "video" else "image"
+        await delete_from_cloudinary(confession["public_id"], resource_type)
+    
+    await db.confessions.delete_one({"id": confession_id})
     return {"message": "Confession deleted"}
 
 @api_router.delete("/admin/comments/{comment_id}")
@@ -772,9 +774,17 @@ async def admin_images(skip: int = Query(0), limit: int = Query(50), admin: dict
 
 @api_router.delete("/admin/images/{file_id}")
 async def admin_delete_image(file_id: str, admin: dict = Depends(verify_admin_token)):
-    result = await db.files.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
-    if result.modified_count == 0:
+    file = await db.files.find_one({"id": file_id}, {"_id": 0})
+    if not file:
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Delete from Cloudinary
+    if file.get("public_id"):
+        content_type = file.get("content_type", "")
+        resource_type = "video" if content_type.startswith("video/") else "image"
+        await delete_from_cloudinary(file["public_id"], resource_type)
+    
+    await db.files.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
     return {"message": "File deleted"}
 
 @api_router.post("/admin/reports/{report_id}/resolve")
@@ -943,6 +953,16 @@ async def auto_delete_old_data():
             del_conf = await db.confessions.delete_many({"created_at": {"$lt": cutoff}})
             del_comm = await db.comments.delete_many({"created_at": {"$lt": cutoff}})
             del_chat = await db.chat_messages.delete_many({"created_at": {"$lt": cutoff}})
+            # Delete old files from Cloudinary first
+            old_files = await db.files.find(
+                {"created_at": {"$lt": cutoff}, "is_deleted": False}, {"_id": 0}
+            ).to_list(1000)
+            for f in old_files:
+                if f.get("public_id"):
+                    content_type = f.get("content_type", "")
+                    resource_type = "video" if content_type.startswith("video/") else "image"
+                    await delete_from_cloudinary(f["public_id"], resource_type)
+
             del_files = await db.files.update_many(
                 {"created_at": {"$lt": cutoff}, "is_deleted": False},
                 {"$set": {"is_deleted": True}}
