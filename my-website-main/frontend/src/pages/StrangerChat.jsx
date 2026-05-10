@@ -604,14 +604,14 @@ const StrangerChat = () => {
 
           {/* Input Bar */}
           <div className="bg-[#0A0808]/95 backdrop-blur-xl border-t border-[#271A1A]/40 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
-            <div className="max-w-4xl mx-auto flex items-center gap-2">
+            <div className="flex items-center gap-1.5 w-full">
 
               {/* Hidden file inputs */}
               <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
               <input type="file" ref={videoInputRef} onChange={handleVideoUpload} accept="video/*" className="hidden" />
 
               {/* Action buttons */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5 shrink-0">
                 {/* Image upload */}
                 <button onClick={() => fileInputRef.current?.click()} disabled={uploadingMedia}
                   className="p-2 rounded-full hover:bg-[#1A1010] transition-all active:scale-90 text-[#5A3A3A] hover:text-[#E63946]"
@@ -640,7 +640,7 @@ const StrangerChat = () => {
               </div>
 
               {/* Text input */}
-              <div className="flex-1 flex items-center bg-[#141010] border border-[#271A1A]/70 rounded-full px-4 py-0.5 focus-within:border-[#E63946]/50 transition-all">
+              <div className="flex-1 min-w-0 flex items-center bg-[#141010] border border-[#271A1A]/70 rounded-full px-3 py-0.5 focus-within:border-[#E63946]/50 transition-all">
                 <input ref={inputRef} type="text" value={inputText} onChange={handleInputChange}
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                   placeholder="Type a message..."
@@ -649,7 +649,7 @@ const StrangerChat = () => {
 
               {/* Send button */}
               <button onClick={handleSendMessage} disabled={!inputText.trim()}
-                className="bg-[#E63946] text-white p-2.5 rounded-full hover:bg-[#C82A36] transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed shadow-[0_0_16px_rgba(230,57,70,0.25)]">
+  className="bg-[#E63946] text-white p-2.5 rounded-full hover:bg-[#C82A36] transition-all active:scale-90 disabled:opacity-20 disabled:cursor-not-allowed shrink-0">
                 <Send size={18} />
               </button>
             </div>
