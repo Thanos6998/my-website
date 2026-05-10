@@ -346,6 +346,21 @@ def generate_nickname():
     import secrets
     return f"{secrets.choice(adjectives)} {secrets.choice(nouns)}"
 
+async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) -> dict:
+    """Upload bytes to Cloudinary and return result."""
+    if content_type and content_type.startswith("video/"):
+        resource_type = "video"
+    else:
+        resource_type = "image"
+    result = cloudinary.uploader.upload(
+        io.BytesIO(contents),
+        resource_type=resource_type,
+        folder=folder,
+        quality="auto",
+        fetch_format="auto"
+    )
+    return result
+
 async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
     """Delete media from Cloudinary by public_id."""
     try:
