@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, Eye } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -32,9 +32,13 @@ const OnboardingModal = () => {
       <div className="w-full max-w-sm relative z-10">
         {/* Logo */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#E63946]/10 border border-[#E63946]/20 rounded-2xl mb-6 animate-pulse-glow">
-            <Eye size={28} className="text-[#E63946]" />
-          </div>
+          <div className="flex items-center justify-center mb-6">
+  <img
+    src="/logo.png"
+    alt="Whispero Nepal"
+    className="w-28 h-28 object-contain drop-shadow-lg"
+  />
+</div>
           <h1 className="text-3xl font-black tracking-tight text-white mb-2 ruby-glow" style={{ fontFamily: "'Playfair Display', serif" }}>
             Whispero Nepal 🇳🇵
           </h1>
