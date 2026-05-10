@@ -10,14 +10,17 @@ const ReportModal = ({ target, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!reason.trim()) return;
+    if (!reason.trim()) {
+      toast.error('Please write a reason before submitting');
+      return;
+    }
 
     setSubmitting(true);
     try {
       await api.post('/reports', {
-        target_type: 'confession',
+        target_type: target.target_type || 'confession',
         target_id: target.id,
-        reason
+        reason: reason.trim()
       });
       setSuccess(true);
       toast.success('Report submitted. Thank you for keeping the community safe!');
@@ -26,13 +29,15 @@ const ReportModal = ({ target, onClose }) => {
       }, 2000);
     } catch (error) {
       console.error('Error reporting:', error);
+      const msg = error?.response?.data?.detail || 'Failed to submit report. Please try again.';
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-[#0F0A0A] border border-white/[0.08] rounded-2xl shadow-[0_0_40px_rgba(230,57,70,0.08)] max-w-md w-full p-6 animate-fade-in" data-testid="report-modal">
         <div className="flex justify-between items-start mb-5">
           <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Report Content</h2>

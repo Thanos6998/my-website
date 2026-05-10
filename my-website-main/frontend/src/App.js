@@ -109,7 +109,7 @@ function AppContent() {
 
       {reportTarget && (
         <ReportModal
-          confession={reportTarget}
+          target={reportTarget}
           onClose={() => setReportTarget(null)}
         />
       )}
