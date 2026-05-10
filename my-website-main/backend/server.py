@@ -402,7 +402,7 @@ async def create_confession(
         is_adult=is_adult,
         city=city,
         media_url=media_url,
-        media_type=media_type
+        media_type=media_type,
         public_id=media_public_id,
     )
     await db.confessions.insert_one(confession.model_dump())
