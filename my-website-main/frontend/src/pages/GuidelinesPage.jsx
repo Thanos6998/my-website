@@ -1,70 +1,87 @@
+import React from 'react';
 import '../style/InfoPages.css';
 
 export default function GuidelinesPage() {
   return (
     <div className="info-page">
-      <div className="info-container">
-        <h1>Community Guidelines</h1>
 
-        <p>
-          Whispero Nepal is a platform built for anonymous expression,
-          open conversations, and respectful interaction. Our goal is
-          to create a safe and positive community where users can freely
-          share confessions, experiences, opinions, emotions, and stories
-          without fear of judgment.
-        </p>
+      <div className="info-topbar">
+        <button className="info-back-btn">←</button>
 
-        <h2>Respect Other Users</h2>
-        <p>
-          Treat everyone with respect. Harassment, bullying, hate speech,
-          discrimination, threats, or targeted abuse toward individuals
-          or groups are strictly prohibited.
-        </p>
-
-        <h2>No Illegal Content</h2>
-        <p>
-          Users may not post illegal content including threats, violence,
-          criminal activity, explicit exploitation, or anything that violates
-          local or international laws.
-        </p>
-
-        <h2>Privacy & Safety</h2>
-        <p>
-          Never share personal information such as phone numbers, addresses,
-          passwords, bank details, private photos, or identity information
-          belonging to yourself or others.
-        </p>
-
-        <h2>Adult Content</h2>
-        <p>
-          Sensitive or adult content must be properly marked as 18+.
-          Explicit sexual exploitation, harmful content, or abusive material
-          is not allowed.
-        </p>
-
-        <h2>No Spam or Fake Activity</h2>
-        <p>
-          Spamming, fake engagement, scams, phishing, misleading information,
-          or repeated promotional content is prohibited.
-        </p>
-
-        <h2>Reporting Violations</h2>
-        <p>
-          Users can report posts or comments that violate community guidelines.
-          Reported content may be reviewed and removed by moderators.
-        </p>
-
-        <h2>Account & Content Removal</h2>
-        <p>
-          Whispero Nepal reserves the right to remove content, suspend users,
-          or permanently ban accounts that violate these rules or harm the community.
-        </p>
-
-        <p>
-          By using this platform, you agree to follow these community guidelines
-          and help maintain a safe environment for everyone.
-        </p>
+        <div className="info-topbar-title">
+          Community Guidelines
+        </div>
       </div>
+
+      <div className="info-hero">
+        <div className="info-hero-icon">
+          ❤️
+        </div>
+
+        <div className="info-hero-title">
+          Keep The Community Safe
+        </div>
+
+        <div className="info-hero-desc">
+          These guidelines help maintain a respectful and healthy
+          environment for everyone.
+        </div>
+      </div>
+
+      <div className="info-sections">
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">01</div>
+            <div className="info-sec-label">Respect Others</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <p>
+                Treat all users respectfully regardless of opinions,
+                gender, religion, or background.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">02</div>
+            <div className="info-sec-label">Avoid Harmful Content</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <ul>
+                <li>No bullying or threats</li>
+                <li>No explicit violence</li>
+                <li>No illegal activity</li>
+                <li>No fake information</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">03</div>
+            <div className="info-sec-label">Report Violations</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <p>
+                Use reporting features to help moderators keep the
+                platform clean and safe.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   );
 }

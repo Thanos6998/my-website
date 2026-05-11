@@ -4,60 +4,93 @@ import '../style/InfoPages.css';
 export default function AboutPage() {
   return (
     <div className="info-page">
-      <div className="info-container">
-        <h1>About Whisper Nepal</h1>
 
-        <p>
-          Whisper Nepal is an anonymous social platform created for people to
-          freely express thoughts, feelings, confessions, experiences, and
-          emotions without revealing their identity.
-        </p>
+      <div className="info-topbar">
+        <button className="info-back-btn">←</button>
 
-        <p>
-          Our mission is to create a safe digital space where anyone can speak
-          honestly without fear of judgment. Whether you want to share secrets,
-          stories, personal struggles, funny moments, or life experiences,
-          Whisper Nepal gives you a voice.
-        </p>
-
-        <h2>What You Can Do</h2>
-
-        <ul>
-          <li>Post anonymous confessions</li>
-          <li>React and interact with posts</li>
-          <li>Join random stranger chats</li>
-          <li>Explore trending discussions</li>
-          <li>Connect freely without revealing identity</li>
-        </ul>
-
-        <h2>Our Vision</h2>
-
-        <p>
-          We believe everyone deserves a place where they can express themselves
-          openly. Whisper Nepal is designed to encourage honesty, emotional
-          release, entertainment, and community interaction while protecting
-          user privacy.
-        </p>
-
-        <h2>Privacy First</h2>
-
-        <p>
-          We do not encourage sharing personal information publicly. Your safety,
-          anonymity, and comfort are important to us.
-        </p>
-
-        <h2>Community Driven</h2>
-
-        <p>
-          Whisper Nepal grows through its users. Every confession, reaction,
-          discussion, and interaction helps build an engaging anonymous
-          community for everyone.
-        </p>
-
-        <p>
-          Thank you for being part of Whisper Nepal.
-        </p>
+        <div className="info-topbar-title">
+          About Us
+        </div>
       </div>
+
+      <div className="info-hero">
+        <div className="info-hero-icon">
+          🔥
+        </div>
+
+        <div className="info-hero-title">
+          Welcome to Whispero Nepal
+        </div>
+
+        <div className="info-hero-desc">
+          Whispero Nepal is an anonymous social platform where people can
+          freely share confessions, thoughts, emotions, stories, and connect
+          with strangers without revealing their identity.
+        </div>
+      </div>
+
+      <div className="info-sections">
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">01</div>
+            <div className="info-sec-label">Our Mission</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <p>
+                Our mission is to create a safe and modern anonymous space
+                where people can express themselves honestly without fear
+                of judgement. We believe everyone deserves a voice.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">02</div>
+            <div className="info-sec-label">What You Can Do</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <ul>
+                <li>Post anonymous confessions</li>
+                <li>Upload photos and videos</li>
+                <li>Chat randomly with strangers</li>
+                <li>React and comment on posts</li>
+                <li>Explore trending confessions</li>
+                <li>Connect with people safely</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="info-sec">
+          <div className="info-sec-head">
+            <div className="info-sec-num">03</div>
+            <div className="info-sec-label">Community</div>
+          </div>
+
+          <div className="info-sec-body open">
+            <div className="info-sec-inner">
+              <p>
+                Whispero Nepal is built for respectful conversations and
+                emotional freedom. We encourage positivity, support,
+                understanding, and responsible use of anonymity.
+              </p>
+
+              <div className="info-note-box">
+                Anonymous does not mean harmful. Respect every user.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   );
 }

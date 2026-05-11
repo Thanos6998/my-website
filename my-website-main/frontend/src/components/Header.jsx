@@ -1,80 +1,111 @@
-import React from 'react';
-import { Shield, ShieldOff, LogOut, Crown } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { toast } from 'sonner';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Menu, X, LogOut } from 'lucide-react';
 
-const Header = ({ safeMode, onSafeModeToggle }) => {
-  const { user, logout, isAdmin } = useAuth();
-
-  const handleLogout = () => {
-    if (window.confirm('Are you sure you want to logout? All your data will be deleted.')) {
-      logout();
-      toast.success('Logged out successfully');
-    }
-  };
+function Header() {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 glass backdrop-blur-xl border-b border-white/10 overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/10 via-blue-600/10 to-purple-600/10 animate-pulse-glow"></div>
-      
-      <div className="relative max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        {/* Left: Logo & Title */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-white glow-text mb-1" style={{ fontFamily: 'Outfit, sans-serif' }} data-testid="app-title">
-            Gupt Kura Nepal
-          </h1>
-          <p className="text-xs sm:text-sm text-gradient font-semibold">Share your secrets anonymously 🤫</p>
-        </div>
+    <>
+      <div className="flex items-center justify-between px-5 py-4 bg-black border-b border-white/10">
 
-        {/* Right: User Info & Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* User Info */}
-          <div className="hidden sm:flex items-center gap-2 glass-card px-4 py-2 rounded-full">
-            <div className="w-8 h-8 rounded-full gradient-purple-blue flex items-center justify-center font-bold text-white text-sm">
-              {user?.name?.charAt(0).toUpperCase()}
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-bold text-white flex items-center gap-1">
-                {user?.name}
-                {isAdmin && <Crown size={14} className="text-yellow-400" />}
-              </p>
-              <p className="text-xs text-gray-400">{user?.age} years old</p>
-            </div>
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white font-bold">
+            👁
           </div>
 
-          {/* Safe Mode Toggle */}
-          <button
-            onClick={onSafeModeToggle}
-            className={`flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-full font-bold transition-all btn-press ${
-              safeMode
-                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30'
-                : 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-300 shadow-lg'
-            }`}
-            data-testid="safe-mode-toggle"
-            title="Toggle Safe Mode"
-          >
-            {safeMode ? <Shield size={16} /> : <ShieldOff size={16} />}
-            <span className="hidden sm:inline text-sm">{safeMode ? 'Safe' : 'All'}</span>
-          </button>
+          <h1 className="text-white text-xl font-bold">
+            Whispero <span className="text-sm">NP</span>
+          </h1>
+        </Link>
 
-          {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full font-bold transition-all btn-press border border-red-500/30"
-            data-testid="logout-btn"
-            title="Logout"
-          >
-            <LogOut size={16} />
-            <span className="hidden sm:inline text-sm">Logout</span>
+        {/* Menu Button */}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="text-white"
+        >
+          <Menu size={24} />
+        </button>
+      </div>
+
+      {/* Overlay */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* Side Menu */}
+      <div
+        className={`fixed top-0 right-0 h-full w-[260px] bg-[#0f0f0f] z-50 transition-transform duration-300 border-l border-white/10 ${
+          menuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-white/10">
+          <h2 className="text-white text-lg font-bold">
+            Menu
+          </h2>
+
+          <button onClick={() => setMenuOpen(false)}>
+            <X className="text-white" size={22} />
           </button>
         </div>
+
+        <div className="flex flex-col p-3">
+
+          <Link
+            to="/about"
+            className="text-[#d1d1d1] hover:text-white px-4 py-3 rounded-xl hover:bg-white/5 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            About
+          </Link>
+
+          <Link
+            to="/guidelines"
+            className="text-[#d1d1d1] hover:text-white px-4 py-3 rounded-xl hover:bg-white/5 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            Guidelines
+          </Link>
+
+          <Link
+            to="/privacy"
+            className="text-[#d1d1d1] hover:text-white px-4 py-3 rounded-xl hover:bg-white/5 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            Privacy Policy
+          </Link>
+
+          <Link
+            to="/terms"
+            className="text-[#d1d1d1] hover:text-white px-4 py-3 rounded-xl hover:bg-white/5 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            Terms & Conditions
+          </Link>
+
+          <Link
+            to="/contact"
+            className="text-[#d1d1d1] hover:text-white px-4 py-3 rounded-xl hover:bg-white/5 transition"
+            onClick={() => setMenuOpen(false)}
+          >
+            Contact Us
+          </Link>
+
+          <button
+            className="mt-5 flex items-center gap-2 text-red-400 hover:text-red-500 px-4 py-3 rounded-xl hover:bg-red-500/10 transition"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
+
+        </div>
       </div>
-      
-      {/* Bottom glow line */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
-    </header>
+    </>
   );
-};
+}
 
 export default Header;
