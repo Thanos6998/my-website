@@ -7,8 +7,6 @@ import AgeVerificationModal from './AgeVerificationModal';
 import api, { API } from '../utils/api';
 import { toast } from 'sonner';
 
-// ─── Reactions — MUST match backend Literal exactly ─────────────────────────
-// Backend accepts: "like" | "dislike" | "laugh" | "sad" | "angry" | "fire"
 const REACTIONS = [
   { type: 'like',    emoji: '👍', label: 'Like',    color: '#1877F2' },
   { type: 'laugh',   emoji: '😂', label: 'Haha',    color: '#F7B125' },
@@ -20,7 +18,6 @@ const REACTIONS = [
 
 const REACTION_MAP = Object.fromEntries(REACTIONS.map(r => [r.type, r]));
 
-// Backend stores counts as: likes, laughs, sads, angrys, fires, dislikes
 const DB_FIELD_TO_TYPE = {
   likes: 'like', laughs: 'laugh', sads: 'sad',
   angrys: 'angry', fires: 'fire', dislikes: 'dislike',
@@ -36,7 +33,6 @@ const extractCounts = (confession) => {
 
 let floatIdCounter = 0;
 
-// ─── Floating emoji ──────────────────────────────────────────────────────────
 const Floater = ({ emoji, x }) => (
   <span style={{
     position: 'absolute', bottom: 32, left: `${x}%`,
@@ -45,7 +41,6 @@ const Floater = ({ emoji, x }) => (
   }}>{emoji}</span>
 );
 
-// ─── Reaction summary bar ────────────────────────────────────────────────────
 const ReactionSummary = ({ counts, total, onOpen }) => {
   if (total === 0) return null;
   const top = Object.entries(counts)
@@ -55,24 +50,24 @@ const ReactionSummary = ({ counts, total, onOpen }) => {
     .map(([type]) => REACTION_MAP[type]?.emoji);
   return (
     <button onClick={onOpen} style={{
-      display: 'flex', alignItems: 'center', gap: 4,
+      display: 'flex', alignItems: 'center', gap: 6,
       background: 'none', border: 'none', cursor: 'pointer',
-      padding: '2px 0', color: 'rgba(255,255,255,0.4)', fontSize: 13,
+      padding: '2px 0',
     }}>
       <span style={{ display: 'flex', marginRight: 2 }}>
         {top.map((em, i) => (
           <span key={i} style={{
-            fontSize: 16, marginLeft: i > 0 ? -4 : 0,
-            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.5))',
+            fontSize: 20,
+            marginLeft: i > 0 ? -4 : 0,
+            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))',
           }}>{em}</span>
         ))}
       </span>
-      <span style={{ color: 'rgba(255,255,255,0.38)' }}>{total}</span>
+      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 600 }}>{total}</span>
     </button>
   );
 };
 
-// ─── Reaction breakdown modal ────────────────────────────────────────────────
 const ReactionBreakdown = ({ counts, total, onClose }) => (
   <div onClick={onClose} style={{
     position: 'fixed', inset: 0, zIndex: 200,
@@ -84,7 +79,7 @@ const ReactionBreakdown = ({ counts, total, onClose }) => (
       borderRadius: 16, padding: '20px 24px', minWidth: 220,
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
     }}>
-      <p style={{ color: 'rgba(255,255,255,0.8)', fontWeight: 600, marginBottom: 14, fontSize: 15 }}>
+      <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 14, fontSize: 15 }}>
         Reactions · {total}
       </p>
       {REACTIONS.map(r => {
@@ -94,20 +89,19 @@ const ReactionBreakdown = ({ counts, total, onClose }) => (
           <div key={r.type} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <span style={{ fontSize: 22 }}>{r.emoji}</span>
             <span style={{ color: r.color, fontWeight: 600, fontSize: 14, flex: 1 }}>{r.label}</span>
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{c}</span>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{c}</span>
           </div>
         );
       })}
       <button onClick={onClose} style={{
         marginTop: 8, width: '100%', padding: '8px 0',
         background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 13,
+        borderRadius: 8, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13,
       }}>Close</button>
     </div>
   </div>
 );
 
-// ─── Single comment / reply ───────────────────────────────────────────────────
 const CommentItem = ({ comment, depth = 0, confessionId }) => {
   const [showReplyInput, setShowReplyInput] = useState(false);
   const [replyText, setReplyText]           = useState('');
@@ -125,22 +119,15 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
   try { timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }); } catch {}
 
   const loadReplies = async () => {
-    if (repliesLoaded) {
-      setShowReplies(v => !v);
-      return;
-    }
+    if (repliesLoaded) { setShowReplies(v => !v); return; }
     setLoadingReplies(true);
     try {
-      // ✅ GET /confessions/:id/comments/:commentId/replies
       const res = await api.get(`/confessions/${confessionId}/comments/${comment.id}/replies`);
       setReplies(res.data);
       setRepliesLoaded(true);
       setShowReplies(true);
-    } catch {
-      toast.error('Failed to load replies');
-    } finally {
-      setLoadingReplies(false);
-    }
+    } catch { toast.error('Failed to load replies'); }
+    finally { setLoadingReplies(false); }
   };
 
   const submitReply = async () => {
@@ -148,7 +135,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
     if (!text || submitting) return;
     setSubmitting(true);
     try {
-      // ✅ POST /confessions/:id/comments/:commentId/replies  — dedicated reply endpoint
       const res = await api.post(
         `/confessions/${confessionId}/comments/${comment.id}/replies`,
         { text }
@@ -159,11 +145,8 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
       setReplyCount(c => c + 1);
       setReplyText('');
       setShowReplyInput(false);
-    } catch {
-      toast.error('Failed to post reply');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch { toast.error('Failed to post reply'); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -178,7 +161,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
       }}>{initials}</div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Bubble */}
         <div style={{
           background: 'rgba(255,255,255,0.05)', borderRadius: 12,
           padding: '8px 12px', display: 'inline-block', maxWidth: '100%',
@@ -186,20 +168,19 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
           <span style={{ color: '#fff', fontWeight: 600, fontSize: 13, marginRight: 6 }}>
             {comment.nickname || 'Anonymous'}
           </span>
-          <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
+          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
             {comment.text}
           </span>
         </div>
 
-        {/* Meta */}
         <div style={{ display: 'flex', gap: 12, marginTop: 5, paddingLeft: 4, alignItems: 'center' }}>
-          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11 }}>{timeAgo}</span>
+          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{timeAgo}</span>
           {depth < 2 && (
             <button
               onClick={() => setShowReplyInput(v => !v)}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: showReplyInput ? '#1877F2' : 'rgba(255,255,255,0.45)',
+                color: showReplyInput ? '#1877F2' : 'rgba(255,255,255,0.6)',
                 fontSize: 11, fontWeight: 700, padding: 0,
               }}
             >
@@ -208,7 +189,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
           )}
         </div>
 
-        {/* Reply input */}
         {showReplyInput && (
           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'flex-end' }}>
             <textarea
@@ -238,7 +218,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
           </div>
         )}
 
-        {/* View replies button */}
         {replyCount > 0 && depth < 2 && (
           <button onClick={loadReplies} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -255,7 +234,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
           </button>
         )}
 
-        {/* Replies list */}
         {showReplies && replies.length > 0 && (
           <div style={{ marginTop: 8 }}>
             {replies.map(reply => (
@@ -273,7 +251,6 @@ const CommentItem = ({ comment, depth = 0, confessionId }) => {
   );
 };
 
-// ─── Comments section ────────────────────────────────────────────────────────
 const CommentsSection = ({ confessionId }) => {
   const [comments, setComments] = useState([]);
   const [text, setText]         = useState('');
@@ -285,14 +262,10 @@ const CommentsSection = ({ confessionId }) => {
   useEffect(() => {
     (async () => {
       try {
-        // ✅ GET top-level comments only (backend filters parent_id: None)
         const res = await api.get(`/confessions/${confessionId}/comments`);
         setComments(res.data);
-      } catch {
-        toast.error('Failed to load comments');
-      } finally {
-        setFetching(false);
-      }
+      } catch { toast.error('Failed to load comments'); }
+      finally { setFetching(false); }
     })();
   }, [confessionId]);
 
@@ -301,22 +274,17 @@ const CommentsSection = ({ confessionId }) => {
     if (!trimmed || loading) return;
     setLoading(true);
     try {
-      // ✅ POST with just { text } — matches CommentCreate(text, nickname?)
       const res = await api.post(`/confessions/${confessionId}/comments`, { text: trimmed });
       setComments(prev => [res.data, ...prev]);
       setText('');
-    } catch {
-      toast.error('Failed to post comment');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Failed to post comment'); }
+    finally { setLoading(false); }
   };
 
   const visible = showAll ? comments : comments.slice(0, PREVIEW);
 
   return (
     <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 14 }}>
-      {/* Input */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14 }}>
         <textarea
           value={text}
@@ -344,10 +312,10 @@ const CommentsSection = ({ confessionId }) => {
       </div>
 
       {fetching && (
-        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, textAlign: 'center' }}>Loading…</p>
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center' }}>Loading…</p>
       )}
       {!fetching && comments.length === 0 && (
-        <p style={{ color: 'rgba(255,255,255,0.2)', fontSize: 13, textAlign: 'center', padding: '6px 0' }}>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center', padding: '6px 0' }}>
           No comments yet. Be the first!
         </p>
       )}
@@ -372,7 +340,6 @@ const CommentsSection = ({ confessionId }) => {
   );
 };
 
-// ─── Main ConfessionCard ─────────────────────────────────────────────────────
 const ConfessionCard = ({ confession, onReport }) => {
   const [showAgeModal, setShowAgeModal]             = useState(false);
   const [adultRevealed, setAdultRevealed]           = useState(false);
@@ -434,7 +401,6 @@ const ConfessionCard = ({ confession, onReport }) => {
     setTimeout(() => setFloaters(prev => prev.filter(f => f.id !== id)), 1200);
   };
 
-  // ✅ Only sends valid backend types: like | laugh | sad | angry | fire | dislike
   const applyReaction = async (type) => {
     setShowReactionPicker(false);
     const r = REACTION_MAP[type];
@@ -455,9 +421,7 @@ const ConfessionCard = ({ confession, onReport }) => {
 
     try {
       await api.post(`/confessions/${confession.id}/react`, { type });
-    } catch {
-      toast.error('Failed to react');
-    }
+    } catch { toast.error('Failed to react'); }
   };
 
   const handlePressStart = () => {
@@ -531,12 +495,13 @@ const ConfessionCard = ({ confession, onReport }) => {
             <div>
               <p style={{ color:'#fff', fontWeight:700, fontSize:15, margin:0 }}>{confession.nickname}</p>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2, flexWrap:'wrap' }}>
-                <span style={{ color:'rgba(255,255,255,0.3)', fontSize:12 }}>{timeAgo}</span>
+                {/* TIME — clearly visible */}
+                <span style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>{timeAgo}</span>
                 {confession.city && <>
-                  <span style={{ color:'rgba(255,255,255,0.15)' }}>·</span>
-                  <span style={{ color:'rgba(255,255,255,0.3)', fontSize:12 }}>{confession.city}</span>
+                  <span style={{ color:'rgba(255,255,255,0.3)' }}>·</span>
+                  <span style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>{confession.city}</span>
                 </>}
-                <span style={{ color:'rgba(255,255,255,0.15)' }}>·</span>
+                <span style={{ color:'rgba(255,255,255,0.3)' }}>·</span>
                 <span style={{
                   color:'#FFB703', fontWeight:600, fontSize:11,
                   background:'rgba(255,183,3,0.1)', padding:'2px 8px',
@@ -548,7 +513,7 @@ const ConfessionCard = ({ confession, onReport }) => {
           <div style={{ position:'relative' }}>
             <button onClick={() => setShowMenu(v => !v)} style={{
               background:'none', border:'none', cursor:'pointer',
-              color:'rgba(255,255,255,0.3)', padding:6, borderRadius:'50%',
+              color:'rgba(255,255,255,0.5)', padding:6, borderRadius:'50%',
             }}><MoreHorizontal size={18}/></button>
             {showMenu && (
               <div style={{
@@ -558,7 +523,7 @@ const ConfessionCard = ({ confession, onReport }) => {
                 <button onClick={() => { onReport(confession); setShowMenu(false); }} style={{
                   display:'flex', alignItems:'center', gap:8, width:'100%',
                   padding:'12px 16px', background:'none', border:'none',
-                  cursor:'pointer', color:'rgba(255,255,255,0.6)', fontSize:14,
+                  cursor:'pointer', color:'rgba(255,255,255,0.7)', fontSize:14,
                 }}>
                   <Flag size={16}/> Report
                 </button>
@@ -577,7 +542,7 @@ const ConfessionCard = ({ confession, onReport }) => {
           </div>
         )}
 
-        <p style={{ color:'rgba(255,255,255,0.85)', fontSize:15, lineHeight:1.65, margin:'0 0 12px', wordBreak:'break-word' }}>
+        <p style={{ color:'rgba(255,255,255,0.9)', fontSize:15, lineHeight:1.65, margin:'0 0 12px', wordBreak:'break-word' }}>
           {confession.text}
         </p>
 
@@ -628,13 +593,13 @@ const ConfessionCard = ({ confession, onReport }) => {
           </div>
         )}
 
-        {/* Reaction summary + comment count */}
+        {/* Reaction summary + comment count — clearly visible */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, minHeight:24 }}>
           <ReactionSummary counts={reactionCounts} total={totalReactions} onOpen={() => setShowBreakdown(true)}/>
           {confession.comments_count > 0 && (
             <button onClick={() => setShowComments(v=>!v)} style={{
               background:'none', border:'none', cursor:'pointer',
-              color:'rgba(255,255,255,0.35)', fontSize:13,
+              color:'rgba(255,255,255,0.7)', fontSize:13, fontWeight:500,
             }}>
               {confession.comments_count} comment{confession.comments_count !== 1 ? 's' : ''}
             </button>
@@ -646,7 +611,6 @@ const ConfessionCard = ({ confession, onReport }) => {
           display:'flex', alignItems:'center', justifyContent:'space-between',
           borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:8,
         }}>
-          {/* Like + picker */}
           <div style={{ position:'relative' }} ref={pickerRef}>
             {floaters.map(f => <Floater key={f.id} emoji={f.emoji} x={f.x}/>)}
 
@@ -678,7 +642,7 @@ const ConfessionCard = ({ confession, onReport }) => {
                 background: currentReaction ? `${currentReaction.color}20` : 'none',
                 border:'none', cursor:'pointer', borderRadius:20,
                 padding:'6px 12px', fontSize:14, fontWeight:600,
-                color: currentReaction ? currentReaction.color : 'rgba(255,255,255,0.4)',
+                color: currentReaction ? currentReaction.color : 'rgba(255,255,255,0.7)',
                 transition:'all 0.15s', userSelect:'none',
               }}
             >
@@ -692,7 +656,7 @@ const ConfessionCard = ({ confession, onReport }) => {
             background: showComments ? 'rgba(255,255,255,0.06)' : 'none',
             border:'none', cursor:'pointer', borderRadius:20,
             padding:'6px 12px', fontSize:14, fontWeight:600,
-            color: showComments ? '#fff' : 'rgba(255,255,255,0.4)',
+            color: showComments ? '#fff' : 'rgba(255,255,255,0.7)',
             transition:'all 0.15s',
           }}>
             <MessageCircle size={18}/> Comment
@@ -702,7 +666,7 @@ const ConfessionCard = ({ confession, onReport }) => {
             display:'flex', alignItems:'center', gap:6,
             background:'none', border:'none', cursor:'pointer',
             borderRadius:20, padding:'6px 12px', fontSize:14, fontWeight:600,
-            color:'rgba(255,255,255,0.4)', transition:'all 0.15s',
+            color:'rgba(255,255,255,0.7)', transition:'all 0.15s',
           }}>
             <Share2 size={18}/> Share
           </button>
