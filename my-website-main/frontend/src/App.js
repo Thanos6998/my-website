@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Toaster } from './components/ui/sonner';
@@ -16,6 +16,13 @@ import CommentsModal from './pages/CommentsModal';
 import ReportModal from './pages/ReportModal';
 import CreateConfessionModal from './components/CreateConfessionModal';
 
+// ── Info pages ──────────────────────────────────────────────
+import AboutPage from './pages/AboutPage';
+import GuidelinesPage from './pages/GuidelinesPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import ContactPage from './pages/ContactPage';
+
 function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateClick }) {
   const location = useLocation();
   const hiddenNavPaths = ['/chat', '/admin/dashboard'];
@@ -24,6 +31,7 @@ function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateCl
   return (
     <>
       <Routes>
+        {/* ── Main app pages ── */}
         <Route
           path="/"
           element={
@@ -48,8 +56,18 @@ function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateCl
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/chat" element={<StrangerChat />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+        {/* ── Info pages (no bottom nav) ── */}
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/guidelines" element={<GuidelinesPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+
+        {/* ── Fallback ── */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
       {!hideNav && <BottomNav onCreateClick={onCreateClick} isAdmin={user?.role === 'admin'} />}
     </>
   );
