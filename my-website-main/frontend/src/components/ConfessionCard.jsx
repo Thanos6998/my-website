@@ -1,344 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, Share2, Flag, MoreHorizontal, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageCircle, Share2, Flag, MoreHorizontal, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { getAvatarColor, getInitials } from '../utils/identity';
 import { getAgeVerified, getSafeMode } from '../utils/session';
 import AgeVerificationModal from './AgeVerificationModal';
 import api, { API } from '../utils/api';
 import { toast } from 'sonner';
-
-const REACTIONS = [
-  { type: 'like',    emoji: '👍', label: 'Like',    color: '#1877F2' },
-  { type: 'laugh',   emoji: '😂', label: 'Haha',    color: '#F7B125' },
-  { type: 'sad',     emoji: '😢', label: 'Sad',     color: '#F7B125' },
-  { type: 'angry',   emoji: '😡', label: 'Angry',   color: '#E9710F' },
-  { type: 'fire',    emoji: '🔥', label: 'Fire',    color: '#FF4500' },
-  { type: 'dislike', emoji: '👎', label: 'Dislike', color: '#888'    },
-];
-
-const REACTION_MAP = Object.fromEntries(REACTIONS.map(r => [r.type, r]));
-
-const DB_FIELD_TO_TYPE = {
-  likes: 'like', laughs: 'laugh', sads: 'sad',
-  angrys: 'angry', fires: 'fire', dislikes: 'dislike',
-};
-
-const extractCounts = (confession) => {
-  const counts = {};
-  Object.entries(DB_FIELD_TO_TYPE).forEach(([field, type]) => {
-    counts[type] = confession[field] || 0;
-  });
-  return counts;
-};
+import {
+  REACTIONS, REACTION_MAP, extractCounts,
+  ReactionSummary, ReactionBreakdown, Floater,
+} from './ReactionBar';
+import CommentsSection from './CommentsSection';
 
 let floatIdCounter = 0;
-
-const Floater = ({ emoji, x }) => (
-  <span style={{
-    position: 'absolute', bottom: 32, left: `${x}%`,
-    fontSize: 22, pointerEvents: 'none', zIndex: 50,
-    animation: 'floatUp 1.1s ease-out forwards',
-  }}>{emoji}</span>
-);
-
-const ReactionSummary = ({ counts, total, onOpen }) => {
-  if (total === 0) return null;
-  const top = Object.entries(counts)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 3)
-    .map(([type]) => REACTION_MAP[type]?.emoji);
-  return (
-    <button onClick={onOpen} style={{
-      display: 'flex', alignItems: 'center', gap: 6,
-      background: 'none', border: 'none', cursor: 'pointer',
-      padding: '2px 0',
-    }}>
-      <span style={{ display: 'flex', marginRight: 2 }}>
-        {top.map((em, i) => (
-          <span key={i} style={{
-            fontSize: 20,
-            marginLeft: i > 0 ? -4 : 0,
-            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))',
-          }}>{em}</span>
-        ))}
-      </span>
-      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: 600 }}>{total}</span>
-    </button>
-  );
-};
-
-const ReactionBreakdown = ({ counts, total, onClose }) => (
-  <div onClick={onClose} style={{
-    position: 'fixed', inset: 0, zIndex: 200,
-    background: 'rgba(0,0,0,0.7)', display: 'flex',
-    alignItems: 'center', justifyContent: 'center',
-  }}>
-    <div onClick={e => e.stopPropagation()} style={{
-      background: '#1A1010', border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 16, padding: '20px 24px', minWidth: 220,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
-    }}>
-      <p style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 14, fontSize: 15 }}>
-        Reactions · {total}
-      </p>
-      {REACTIONS.map(r => {
-        const c = counts[r.type] || 0;
-        if (!c) return null;
-        return (
-          <div key={r.type} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <span style={{ fontSize: 22 }}>{r.emoji}</span>
-            <span style={{ color: r.color, fontWeight: 600, fontSize: 14, flex: 1 }}>{r.label}</span>
-            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>{c}</span>
-          </div>
-        );
-      })}
-      <button onClick={onClose} style={{
-        marginTop: 8, width: '100%', padding: '8px 0',
-        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13,
-      }}>Close</button>
-    </div>
-  </div>
-);
-
-const CommentItem = ({ comment, depth = 0, confessionId }) => {
-  const [showReplyInput, setShowReplyInput] = useState(false);
-  const [replyText, setReplyText]           = useState('');
-  const [replies, setReplies]               = useState([]);
-  const [showReplies, setShowReplies]       = useState(false);
-  const [repliesLoaded, setRepliesLoaded]   = useState(false);
-  const [loadingReplies, setLoadingReplies] = useState(false);
-  const [submitting, setSubmitting]         = useState(false);
-  const [replyCount, setReplyCount]         = useState(comment.replies_count || 0);
-
-  const colors   = getAvatarColor(comment.nickname || 'Anon');
-  const initials = getInitials(comment.nickname || 'Anon');
-
-  let timeAgo = 'just now';
-  try { timeAgo = formatDistanceToNow(new Date(comment.created_at), { addSuffix: true }); } catch {}
-
-  const loadReplies = async () => {
-    if (repliesLoaded) { setShowReplies(v => !v); return; }
-    setLoadingReplies(true);
-    try {
-      const res = await api.get(`/confessions/${confessionId}/comments/${comment.id}/replies`);
-      setReplies(res.data);
-      setRepliesLoaded(true);
-      setShowReplies(true);
-    } catch { toast.error('Failed to load replies'); }
-    finally { setLoadingReplies(false); }
-  };
-
-  const submitReply = async () => {
-    const text = replyText.trim();
-    if (!text || submitting) return;
-    setSubmitting(true);
-    try {
-      const res = await api.post(
-        `/confessions/${confessionId}/comments/${comment.id}/replies`,
-        { text }
-      );
-      setReplies(prev => [...prev, res.data]);
-      setRepliesLoaded(true);
-      setShowReplies(true);
-      setReplyCount(c => c + 1);
-      setReplyText('');
-      setShowReplyInput(false);
-    } catch { toast.error('Failed to post reply'); }
-    finally { setSubmitting(false); }
-  };
-
-  return (
-    <div style={{ display: 'flex', gap: 10, marginBottom: 14, paddingLeft: depth > 0 ? 32 : 0 }}>
-      <div style={{
-        width: depth === 0 ? 34 : 28, height: depth === 0 ? 34 : 28,
-        borderRadius: '50%', flexShrink: 0, display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        fontSize: depth === 0 ? 12 : 10, fontWeight: 700, color: '#fff',
-        background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
-        marginTop: 2,
-      }}>{initials}</div>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          background: 'rgba(255,255,255,0.05)', borderRadius: 12,
-          padding: '8px 12px', display: 'inline-block', maxWidth: '100%',
-        }}>
-          <span style={{ color: '#fff', fontWeight: 600, fontSize: 13, marginRight: 6 }}>
-            {comment.nickname || 'Anonymous'}
-          </span>
-          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word' }}>
-            {comment.text}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, marginTop: 5, paddingLeft: 4, alignItems: 'center' }}>
-          <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>{timeAgo}</span>
-          {depth < 2 && (
-            <button
-              onClick={() => setShowReplyInput(v => !v)}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: showReplyInput ? '#1877F2' : 'rgba(255,255,255,0.6)',
-                fontSize: 11, fontWeight: 700, padding: 0,
-              }}
-            >
-              {showReplyInput ? 'Cancel' : 'Reply'}
-            </button>
-          )}
-        </div>
-
-        {showReplyInput && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'flex-end' }}>
-            <textarea
-              value={replyText}
-              onChange={e => setReplyText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(); }}}
-              placeholder={`Reply to ${comment.nickname || 'Anonymous'}…`}
-              rows={1}
-              autoFocus
-              style={{
-                flex: 1, background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20,
-                padding: '7px 14px', color: '#fff', fontSize: 13,
-                resize: 'none', outline: 'none', lineHeight: 1.5,
-              }}
-            />
-            <button
-              onClick={submitReply}
-              disabled={!replyText.trim() || submitting}
-              style={{
-                background: '#1877F2', border: 'none', borderRadius: 20,
-                padding: '7px 14px', color: '#fff', fontSize: 13, fontWeight: 600,
-                cursor: replyText.trim() && !submitting ? 'pointer' : 'not-allowed',
-                opacity: replyText.trim() && !submitting ? 1 : 0.4, whiteSpace: 'nowrap',
-              }}
-            >{submitting ? '…' : 'Send'}</button>
-          </div>
-        )}
-
-        {replyCount > 0 && depth < 2 && (
-          <button onClick={loadReplies} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: '#1877F2', fontSize: 12, fontWeight: 600,
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '4px 0', marginTop: 4,
-          }}>
-            {loadingReplies
-              ? '…loading'
-              : showReplies && repliesLoaded
-                ? <><ChevronUp size={13}/> Hide replies</>
-                : <><ChevronDown size={13}/> View {replyCount} {replyCount === 1 ? 'reply' : 'replies'}</>
-            }
-          </button>
-        )}
-
-        {showReplies && replies.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {replies.map(reply => (
-              <CommentItem
-                key={reply.id}
-                comment={reply}
-                depth={depth + 1}
-                confessionId={confessionId}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const CommentsSection = ({ confessionId }) => {
-  const [comments, setComments] = useState([]);
-  const [text, setText]         = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [fetching, setFetching] = useState(true);
-  const [showAll, setShowAll]   = useState(false);
-  const PREVIEW = 3;
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get(`/confessions/${confessionId}/comments`);
-        setComments(res.data);
-      } catch { toast.error('Failed to load comments'); }
-      finally { setFetching(false); }
-    })();
-  }, [confessionId]);
-
-  const submitComment = async () => {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-    setLoading(true);
-    try {
-      const res = await api.post(`/confessions/${confessionId}/comments`, { text: trimmed });
-      setComments(prev => [res.data, ...prev]);
-      setText('');
-    } catch { toast.error('Failed to post comment'); }
-    finally { setLoading(false); }
-  };
-
-  const visible = showAll ? comments : comments.slice(0, PREVIEW);
-
-  return (
-    <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 14 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 14 }}>
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); }}}
-          placeholder="Write a comment…"
-          rows={1}
-          style={{
-            flex: 1, background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20,
-            padding: '9px 16px', color: '#fff', fontSize: 13,
-            resize: 'none', outline: 'none', lineHeight: 1.5,
-          }}
-        />
-        <button
-          onClick={submitComment}
-          disabled={!text.trim() || loading}
-          style={{
-            background: '#1877F2', border: 'none', borderRadius: 20,
-            padding: '9px 16px', color: '#fff', fontSize: 13, fontWeight: 600,
-            cursor: text.trim() && !loading ? 'pointer' : 'not-allowed',
-            opacity: text.trim() && !loading ? 1 : 0.4,
-          }}
-        >{loading ? '…' : 'Post'}</button>
-      </div>
-
-      {fetching && (
-        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, textAlign: 'center' }}>Loading…</p>
-      )}
-      {!fetching && comments.length === 0 && (
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center', padding: '6px 0' }}>
-          No comments yet. Be the first!
-        </p>
-      )}
-
-      {visible.map(c => (
-        <CommentItem key={c.id} comment={c} depth={0} confessionId={confessionId} />
-      ))}
-
-      {comments.length > PREVIEW && (
-        <button onClick={() => setShowAll(v => !v)} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#1877F2', fontSize: 13, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0',
-        }}>
-          {showAll
-            ? <><ChevronUp size={14}/> Show less</>
-            : <><ChevronDown size={14}/> View {comments.length - PREVIEW} more comment{comments.length - PREVIEW !== 1 ? 's' : ''}</>
-          }
-        </button>
-      )}
-    </div>
-  );
-};
 
 const ConfessionCard = ({ confession, onReport }) => {
   const [showAgeModal, setShowAgeModal]             = useState(false);
@@ -404,7 +78,6 @@ const ConfessionCard = ({ confession, onReport }) => {
   const applyReaction = async (type) => {
     setShowReactionPicker(false);
     const r = REACTION_MAP[type];
-
     setReactionCounts(prev => {
       const next = { ...prev };
       if (myReaction === type) {
@@ -416,9 +89,7 @@ const ConfessionCard = ({ confession, onReport }) => {
       }
       return next;
     });
-
     setMyReaction(prev => prev === type ? null : type);
-
     try {
       await api.post(`/confessions/${confession.id}/react`, { type });
     } catch { toast.error('Failed to react'); }
@@ -495,7 +166,6 @@ const ConfessionCard = ({ confession, onReport }) => {
             <div>
               <p style={{ color:'#fff', fontWeight:700, fontSize:15, margin:0 }}>{confession.nickname}</p>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2, flexWrap:'wrap' }}>
-                {/* TIME — clearly visible */}
                 <span style={{ color:'rgba(255,255,255,0.7)', fontSize:12 }}>{timeAgo}</span>
                 {confession.city && <>
                   <span style={{ color:'rgba(255,255,255,0.3)' }}>·</span>
@@ -593,7 +263,6 @@ const ConfessionCard = ({ confession, onReport }) => {
           </div>
         )}
 
-        {/* Reaction summary + comment count — clearly visible */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10, minHeight:24 }}>
           <ReactionSummary counts={reactionCounts} total={totalReactions} onOpen={() => setShowBreakdown(true)}/>
           {confession.comments_count > 0 && (
@@ -606,7 +275,6 @@ const ConfessionCard = ({ confession, onReport }) => {
           )}
         </div>
 
-        {/* Action bar */}
         <div style={{
           display:'flex', alignItems:'center', justifyContent:'space-between',
           borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:8,
