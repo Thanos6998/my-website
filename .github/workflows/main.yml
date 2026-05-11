@@ -2,8 +2,7 @@ name: Keep Render alive
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
+    - cron: "*/5 * * * *"
 
 jobs:
   ping:
@@ -13,14 +12,12 @@ jobs:
       - name: Ping backend
         run: |
           STATUS=$(curl --silent --output /dev/null \
-            --write-out "%{http_code}" \
-            ${{ secrets.RENDER_URL }}/health)
+          --write-out "%{http_code}" \
+          https://my-website-g7nn.onrender.com/api/)
 
           echo "Status: $STATUS"
 
-          if [ "$STATUS" != "200" ]; then
+          if [ "$STATUS" -ne 200 ]; then
             echo "Failed"
             exit 1
           fi
-
-          echo "Alive at $(date)"
