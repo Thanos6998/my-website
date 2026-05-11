@@ -2,7 +2,7 @@ name: Keep Render alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
 
 jobs:
   ping:
@@ -13,7 +13,7 @@ jobs:
         run: |
           STATUS=$(curl --silent --output /dev/null \
           --write-out "%{http_code}" \
-          https://my-website-g7nn.onrender.com/api/)
+          https://my-website-g7nn.onrender.com/api/online-count)
 
           echo "Status: $STATUS"
 
