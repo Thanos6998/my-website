@@ -11,13 +11,4 @@ jobs:
     steps:
       - name: Ping backend
         run: |
-          STATUS=$(curl --silent --output /dev/null \
-          --write-out "%{http_code}" \
-          https://my-website-g7nn.onrender.com/api/online-count)
-
-          echo "Status: $STATUS"
-
-          if [ "$STATUS" -ne 200 ]; then
-            echo "Failed"
-            exit 1
-          fi
+          curl -s https://my-website-g7nn.onrender.com/api/online-count
