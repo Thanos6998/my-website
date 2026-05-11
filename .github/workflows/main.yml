@@ -2,8 +2,8 @@ name: Keep Render alive
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
-  workflow_dispatch:          # allows manual trigger
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   ping:
@@ -11,8 +11,5 @@ jobs:
     steps:
       - name: Ping backend
         run: |
-          STATUS=$(curl --silent --output /dev/null --write-out "%{http_code}" https://my-website-g7nn.onrender.com)
-          echo "Status: $STATUS"
-          if [ "$STATUS" -ne 200 ]; then
-            echo "Warning: got $STATUS, but continuing anyway"
-          fi
+          curl --silent --output /dev/null https://my-website-g7nn.onrender.com || true
+          echo "Ping sent"
