@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Header, Query, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import Response, HTMLResponse
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
+
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -42,6 +42,7 @@ storage_key = None
 
 # Create the main app
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -54,6 +55,7 @@ api_router = APIRouter(prefix="/api")
 # Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -73,6 +75,7 @@ class ConnectionManager:
                 await connection.send_json(message)
             except:
                 pass
+
 
 # Random Chat Manager
 class RandomChatManager:
@@ -114,6 +117,7 @@ class RandomChatManager:
             del self.active_chats[session_id]
         if session_id in self.waiting_queue:
             self.waiting_queue.remove(session_id)
+
 
 # Stranger Chat Manager
 class StrangerChatManager:
@@ -214,9 +218,11 @@ class StrangerChatManager:
                         pass
         logger.info(f"User {user_id} disconnected")
 
+
 stranger_chat_manager = StrangerChatManager()
 manager = ConnectionManager()
 random_chat_manager = RandomChatManager()
+
 
 # Storage functions (legacy fallback)
 def init_storage():
@@ -233,6 +239,7 @@ def init_storage():
         logger.error(f"Storage init failed: {e}")
         raise
 
+
 def get_object(path: str) -> tuple[bytes, str]:
     key = init_storage()
     resp = requests.get(
@@ -242,6 +249,7 @@ def get_object(path: str) -> tuple[bytes, str]:
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
+
 # Models
 class Session(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -250,8 +258,10 @@ class Session(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     safe_mode: bool = True
 
+
 class SessionCreate(BaseModel):
     device_id: str
+
 
 class Confession(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -274,12 +284,14 @@ class Confession(BaseModel):
     comments_count: int = 0
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+
 class ConfessionCreate(BaseModel):
     text: str
     category: Literal["love", "college", "secrets", "life"]
     nickname: Optional[str] = None
     is_adult: bool = False
     city: Optional[str] = None
+
 
 class Comment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -292,12 +304,15 @@ class Comment(BaseModel):
     replies_count: int = 0
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+
 class CommentCreate(BaseModel):
     text: str
     nickname: Optional[str] = None
 
+
 class Reaction(BaseModel):
     type: Literal["like", "dislike", "laugh", "sad", "angry", "fire"]
+
 
 class Report(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -309,18 +324,53 @@ class Report(BaseModel):
     status: Literal["pending", "resolved", "ignored"] = "pending"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+
 class ReportCreate(BaseModel):
     target_type: Literal["confession", "comment"]
     target_id: str
     reason: str
 
+
+# =========================
+# ROOM MODELS (single definition, no duplicates)
+# =========================
+
+class RoomCreate(BaseModel):
+    name: str
+    emoji: Optional[str] = "💬"
+
+
+class Room(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    emoji: str = "💬"
+    creator_session_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    expires_at: str = Field(
+        default_factory=lambda: (
+            datetime.now(timezone.utc) + timedelta(hours=24)
+        ).isoformat()
+    )
+
+
+class RoomMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    room_id: str
+    nickname: str
+    type: str = "text"
+    text: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
 class AdminLogin(BaseModel):
     email: str
     password: str
 
+
 class AdminToken(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
 
 # Helper functions
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=24)):
@@ -329,6 +379,7 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=2
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
+
 
 async def verify_admin_token(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -340,11 +391,13 @@ async def verify_admin_token(authorization: str = Header(None)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
 def generate_nickname():
     adjectives = ["Anonymous", "Secret", "Hidden", "Mystery", "Silent", "Quiet", "Shy", "Bold"]
     nouns = ["Heart", "Soul", "Mind", "Spirit", "Voice", "Whisper", "Dreamer", "Wanderer"]
     import secrets
     return f"{secrets.choice(adjectives)} {secrets.choice(nouns)}"
+
 
 async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) -> dict:
     """Upload bytes to Cloudinary and return result."""
@@ -361,6 +414,7 @@ async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) 
     )
     return result
 
+
 async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
     """Delete media from Cloudinary by public_id."""
     try:
@@ -369,10 +423,12 @@ async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
     except Exception as e:
         logger.error(f"Failed to delete from Cloudinary: {public_id} — {e}")
 
+
 # Routes
 @api_router.get("/")
 async def root():
     return {"message": "Welcome to Whispero Nepal API"}
+
 
 @api_router.post("/auth/session", response_model=Session)
 async def create_session(input: SessionCreate):
@@ -383,6 +439,7 @@ async def create_session(input: SessionCreate):
     await db.sessions.insert_one(session.model_dump())
     return session
 
+
 @api_router.post("/admin/login", response_model=AdminToken)
 async def admin_login(input: AdminLogin):
     admin = await db.admins.find_one({"email": input.email}, {"_id": 0})
@@ -390,6 +447,7 @@ async def admin_login(input: AdminLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token = create_access_token({"sub": admin["email"], "role": "admin"})
     return AdminToken(access_token=access_token)
+
 
 @api_router.post("/confessions", response_model=Confession)
 async def create_confession(
@@ -423,8 +481,9 @@ async def create_confession(
     await db.confessions.insert_one(confession.model_dump())
     return confession
 
+
 async def _process_confession_media(media: UploadFile, session_id: str):
-    """Upload confession media to Cloudinary. Returns (media_url, media_type)."""
+    """Upload confession media to Cloudinary. Returns (media_url, media_type, public_id)."""
     contents = await media.read()
 
     if not contents:
@@ -457,6 +516,7 @@ async def _process_confession_media(media: UploadFile, session_id: str):
 
     return result["secure_url"], media_type, result["public_id"]
 
+
 @api_router.get("/confessions", response_model=List[Confession])
 async def get_confessions(
     skip: int = Query(0),
@@ -474,12 +534,14 @@ async def get_confessions(
     confessions = await db.confessions.find(query, {"_id": 0}).sort(sort_field, -1).skip(skip).limit(limit).to_list(limit)
     return confessions
 
+
 @api_router.get("/confessions/{confession_id}", response_model=Confession)
 async def get_confession(confession_id: str):
     confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
     return Confession(**confession)
+
 
 @api_router.post("/confessions/{confession_id}/react")
 async def react_to_confession(
@@ -491,9 +553,14 @@ async def react_to_confession(
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
 
-    REACTION_FIELDS = {"like": "likes", "dislike": "dislikes", "laugh": "laughs", "sad": "sads", "angry": "angrys", "fire": "fires"}
+    REACTION_FIELDS = {
+        "like": "likes", "dislike": "dislikes", "laugh": "laughs",
+        "sad": "sads", "angry": "angrys", "fire": "fires"
+    }
 
-    existing_reaction = await db.reactions.find_one({"confession_id": confession_id, "session_id": session_id}, {"_id": 0})
+    existing_reaction = await db.reactions.find_one(
+        {"confession_id": confession_id, "session_id": session_id}, {"_id": 0}
+    )
 
     if existing_reaction:
         old_type = existing_reaction["type"]
@@ -530,12 +597,14 @@ async def react_to_confession(
 
     return {"message": "Reaction recorded", "action": "added"}
 
+
 @api_router.get("/confessions/{confession_id}/comments", response_model=List[Comment])
 async def get_comments(confession_id: str, skip: int = Query(0), limit: int = Query(50)):
     comments = await db.comments.find(
         {"confession_id": confession_id, "parent_id": None}, {"_id": 0}
     ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return comments
+
 
 @api_router.post("/confessions/{confession_id}/comments", response_model=Comment)
 async def create_comment(
@@ -556,12 +625,14 @@ async def create_comment(
     await db.confessions.update_one({"id": confession_id}, {"$inc": {"comments_count": 1}})
     return comment
 
+
 @api_router.get("/confessions/{confession_id}/comments/{comment_id}/replies", response_model=List[Comment])
 async def get_replies(confession_id: str, comment_id: str, skip: int = Query(0), limit: int = Query(50)):
     replies = await db.comments.find(
         {"confession_id": confession_id, "parent_id": comment_id}, {"_id": 0}
     ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
     return replies
+
 
 @api_router.post("/confessions/{confession_id}/comments/{comment_id}/replies", response_model=Comment)
 async def create_reply(
@@ -585,6 +656,7 @@ async def create_reply(
     await db.confessions.update_one({"id": confession_id}, {"$inc": {"comments_count": 1}})
     return reply
 
+
 @api_router.post("/reports", response_model=Report)
 async def create_report(
     input: ReportCreate,
@@ -602,6 +674,7 @@ async def create_report(
         if input.target_type == "confession":
             await db.confessions.update_one({"id": input.target_id}, {"$set": {"is_hidden": True}})
     return report
+
 
 @api_router.get("/files/{path:path}")
 async def download_file(path: str):
@@ -621,24 +694,26 @@ async def download_file(path: str):
         logger.error(f"Error downloading file: {e}")
         raise HTTPException(status_code=500, detail="Error downloading file")
 
+
 @api_router.get("/admin/reports", response_model=List[Report])
 async def get_reports(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     reports = await db.reports.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return reports
+
 
 @api_router.delete("/admin/confessions/{confession_id}")
 async def delete_confession(confession_id: str, admin: dict = Depends(verify_admin_token)):
     confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
-    
-    # Delete media from Cloudinary if exists
+
     if confession.get("public_id"):
         resource_type = "video" if confession.get("media_type") == "video" else "image"
         await delete_from_cloudinary(confession["public_id"], resource_type)
-    
+
     await db.confessions.delete_one({"id": confession_id})
     return {"message": "Confession deleted"}
+
 
 @api_router.delete("/admin/comments/{comment_id}")
 async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_token)):
@@ -646,6 +721,7 @@ async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_tok
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Comment not found")
     return {"message": "Comment deleted"}
+
 
 @api_router.delete("/chat-media/cleanup")
 async def cleanup_chat_media(
@@ -668,6 +744,7 @@ async def cleanup_chat_media(
         except Exception as e:
             logger.error(f"Failed to delete chat media {public_id}: {e}")
     return {"message": f"Deleted {len(public_ids)} files"}
+
 
 @api_router.post("/upload-chat-media")
 async def upload_chat_media(
@@ -705,6 +782,7 @@ async def upload_chat_media(
 
     return {"media_url": result["secure_url"], "public_id": result["public_id"]}
 
+
 @api_router.post("/upload-compressed-media")
 async def upload_compressed_media(
     session_id: str = Header(..., alias="X-Session-Id"),
@@ -727,6 +805,7 @@ async def upload_compressed_media(
     result = await upload_to_cloudinary(contents, content_type, "whispero/compressed")
     return {"media_url": result["secure_url"], "size": result["bytes"]}
 
+
 def _compress_image(data: bytes, content_type: str, ext: str) -> tuple:
     if not content_type.startswith("image/") or ext.lower() not in ("jpg", "jpeg", "png", "webp"):
         return data, content_type
@@ -746,6 +825,7 @@ def _compress_image(data: bytes, content_type: str, ext: str) -> tuple:
         logger.warning(f"Image compression failed, uploading original: {e}")
         return data, content_type
 
+
 @api_router.post("/admin/ban-session")
 async def ban_session(session_id: str = Query(...), reason: str = Query(...), admin: dict = Depends(verify_admin_token)):
     await db.banned_sessions.insert_one({
@@ -755,6 +835,7 @@ async def ban_session(session_id: str = Query(...), reason: str = Query(...), ad
         "banned_at": datetime.now(timezone.utc).isoformat()
     })
     return {"message": "Session banned"}
+
 
 @api_router.get("/admin/analytics")
 async def admin_analytics(admin: dict = Depends(verify_admin_token)):
@@ -791,6 +872,7 @@ async def admin_analytics(admin: dict = Depends(verify_admin_token)):
         "top_confessions": top_confessions
     }
 
+
 @api_router.get("/admin/sessions")
 async def admin_sessions(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     sessions = await db.sessions.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
@@ -799,30 +881,33 @@ async def admin_sessions(skip: int = Query(0), limit: int = Query(50), admin: di
         s["is_banned"] = s.get("id") in banned_ids
     return sessions
 
+
 @api_router.get("/admin/comments")
 async def admin_comments(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     comments = await db.comments.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return comments
+
 
 @api_router.get("/admin/images")
 async def admin_images(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     files = await db.files.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return files
 
+
 @api_router.delete("/admin/images/{file_id}")
 async def admin_delete_image(file_id: str, admin: dict = Depends(verify_admin_token)):
     file = await db.files.find_one({"id": file_id}, {"_id": 0})
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-    
-    # Delete from Cloudinary
+
     if file.get("public_id"):
         content_type = file.get("content_type", "")
         resource_type = "video" if content_type.startswith("video/") else "image"
         await delete_from_cloudinary(file["public_id"], resource_type)
-    
+
     await db.files.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
     return {"message": "File deleted"}
+
 
 @api_router.post("/admin/reports/{report_id}/resolve")
 async def resolve_report(report_id: str, action: str = Query(...), admin: dict = Depends(verify_admin_token)):
@@ -831,6 +916,7 @@ async def resolve_report(report_id: str, action: str = Query(...), admin: dict =
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Report not found")
     return {"message": f"Report {status}"}
+
 
 @api_router.get("/confessions/featured/top")
 async def get_confession_of_the_day():
@@ -842,9 +928,190 @@ async def get_confession_of_the_day():
         top = await db.confessions.find({}, {"_id": 0}).sort("likes", -1).limit(1).to_list(1)
     return top[0] if top else None
 
+
+# =========================
+# DYNAMIC CHAT ROOMS SYSTEM
+# =========================
+
+room_connections = defaultdict(list)
+
+MAX_ROOMS_PER_DAY = 5
+
+
+def clean_room_name(name: str) -> str:
+    return name.strip()[:40]
+
+
+def validate_message(text: str) -> bool:
+    """Return True only if text is non-empty and within 500 chars."""
+    return 0 < len(text.strip()) <= 500
+
+
+# =========================
+# CREATE ROOM
+# =========================
+
+@api_router.post("/rooms/create")
+async def create_room(
+    input: RoomCreate,
+    session_id: str = Header(..., alias="X-Session-Id")
+):
+    session = await db.sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    count = await db.rooms.count_documents({
+        "creator_session_id": session_id,
+        "created_at": {"$gte": since.isoformat()}
+    })
+
+    if count >= MAX_ROOMS_PER_DAY:
+        raise HTTPException(status_code=429, detail="Room limit reached")
+
+    room = Room(
+        name=clean_room_name(input.name),
+        emoji=input.emoji or "💬",
+        creator_session_id=session_id
+    )
+
+    await db.rooms.insert_one(room.model_dump())
+    logger.info(f"Room created: {room.id} — '{room.name}' by session {session_id}")
+    return room
+
+
+# =========================
+# GET ROOMS
+# =========================
+
+@api_router.get("/rooms")
+async def get_rooms():
+    # FIX: use expires_at (not created_at) so rooms live for their full 24-hour window
+    now = datetime.now(timezone.utc).isoformat()
+
+    rooms = await db.rooms.find(
+        {"expires_at": {"$gt": now}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+
+    result = []
+    for room in rooms:
+        room_id = room["id"]
+        result.append({
+            **room,
+            "online": len(room_connections.get(room_id, []))
+        })
+
+    return result
+
+
+# =========================
+# GET ROOM MESSAGES
+# =========================
+
+@api_router.get("/rooms/{room_id}/messages")
+async def get_room_messages(room_id: str):
+    room = await db.rooms.find_one({"id": room_id})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    messages = await db.room_messages.find(
+        {"room_id": room_id},
+        {"_id": 0}
+    ).sort("created_at", 1).limit(100).to_list(100)
+
+    return messages
+
+
+# =========================
+# ROOM WEBSOCKET
+# =========================
+
+@app.websocket("/api/ws/rooms/{room_id}")
+async def room_websocket(
+    websocket: WebSocket,
+    room_id: str,
+    nickname: str = Query("Anonymous")
+):
+    room = await db.rooms.find_one({"id": room_id})
+    if not room:
+        await websocket.close(code=4004)
+        return
+
+    await websocket.accept()
+
+    room_connections[room_id].append({
+        "ws": websocket,
+        "nickname": nickname
+    })
+
+    join_msg = {
+        "id": str(uuid.uuid4()),
+        "type": "system",
+        "text": f"{nickname} joined",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "online": len(room_connections[room_id])
+    }
+
+    for c in room_connections[room_id]:
+        try:
+            await c["ws"].send_json(join_msg)
+        except:
+            pass
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+
+            if data.get("type") not in ["text"]:
+                continue
+
+            text = data.get("text", "")
+
+            if not validate_message(text):
+                continue
+
+            message = RoomMessage(
+                room_id=room_id,
+                nickname=nickname,
+                text=text
+            )
+
+            await db.room_messages.insert_one(message.model_dump())
+
+            for c in room_connections[room_id]:
+                try:
+                    await c["ws"].send_json(message.model_dump())
+                except:
+                    pass
+
+    except WebSocketDisconnect:
+        room_connections[room_id] = [
+            u for u in room_connections[room_id]
+            if u["ws"] != websocket
+        ]
+
+        leave_msg = {
+            "id": str(uuid.uuid4()),
+            "type": "system",
+            "text": f"{nickname} left",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "online": len(room_connections[room_id])
+        }
+
+        for c in room_connections[room_id]:
+            try:
+                await c["ws"].send_json(leave_msg)
+            except:
+                pass
+
+
 @api_router.get("/online-count")
+
 async def get_online_count():
     return {"online": stranger_chat_manager.online_count, "waiting": len(stranger_chat_manager.waiting_users)}
+
 
 # WebSocket for Random Chat
 @app.websocket("/api/ws/random-chat")
@@ -884,6 +1151,7 @@ async def websocket_random_chat(websocket: WebSocket, session_id: str = Query(..
         logger.error(f"WebSocket error for {session_id}: {e}")
         await random_chat_manager.disconnect_user(session_id)
 
+
 # WebSocket for chat
 @app.websocket("/api/ws/chat/{room_id}")
 async def websocket_chat(websocket: WebSocket, room_id: str):
@@ -904,6 +1172,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str):
     except WebSocketDisconnect:
         manager.disconnect(room_id, websocket)
 
+
 async def _ws_keepalive(websocket: WebSocket, interval: int = 5):
     try:
         while True:
@@ -917,6 +1186,7 @@ async def _ws_keepalive(websocket: WebSocket, interval: int = 5):
                 break
     except asyncio.CancelledError:
         pass
+
 
 async def _handle_stranger_message(user_id: str, data: dict, websocket: WebSocket) -> bool:
     msg_type = data.get('type', data.get('action', 'unknown'))
@@ -935,6 +1205,7 @@ async def _handle_stranger_message(user_id: str, data: dict, websocket: WebSocke
             return False
         return True
     return True
+
 
 # WebSocket for Stranger Chat
 @app.websocket("/api/ws/stranger-chat")
@@ -971,29 +1242,55 @@ async def websocket_stranger_chat(websocket: WebSocket, user_id: str = Query(...
         ping_task.cancel()
         await stranger_chat_manager.disconnect(user_id)
 
+
 # Include router
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# 24-hour auto-delete background task
+# =========================
+# 24-HOUR AUTO-DELETE TASK
+# FIX: Rooms are now deleted by expires_at (not created_at),
+#      so newly created rooms survive their full 24-hour window.
+# =========================
+
 async def auto_delete_old_data():
     while True:
         try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            now = datetime.now(timezone.utc)
+            cutoff = (now - timedelta(hours=24)).isoformat()
+            now_iso = now.isoformat()
+
+            # Delete confessions, comments, chat messages older than 24h
             del_conf = await db.confessions.delete_many({"created_at": {"$lt": cutoff}})
             del_comm = await db.comments.delete_many({"created_at": {"$lt": cutoff}})
             del_chat = await db.chat_messages.delete_many({"created_at": {"$lt": cutoff}})
-            # Delete old files from Cloudinary first
+
+            # FIX: Delete rooms whose expires_at has passed (not based on created_at)
+            deleted_rooms = await db.rooms.delete_many({
+                "expires_at": {"$lt": now_iso}
+            })
+
+            # Delete room messages for expired rooms OR messages older than 24h
+            active_rooms = await db.rooms.find({}, {"_id": 0, "id": 1}).to_list(1000)
+            active_room_ids = [r["id"] for r in active_rooms]
+
+            deleted_room_messages = await db.room_messages.delete_many({
+                "$or": [
+                    {"created_at": {"$lt": cutoff}},
+                    {"room_id": {"$nin": active_room_ids}}
+                ]
+            })
+
+            logger.info(
+                f"Auto-delete: {deleted_rooms.deleted_count} expired rooms, "
+                f"{deleted_room_messages.deleted_count} room messages"
+            )
+
+            # Delete old files from Cloudinary
             old_files = await db.files.find(
                 {"created_at": {"$lt": cutoff}, "is_deleted": False}, {"_id": 0}
             ).to_list(1000)
+
             for f in old_files:
                 if f.get("public_id"):
                     content_type = f.get("content_type", "")
@@ -1006,12 +1303,20 @@ async def auto_delete_old_data():
             )
             del_sess = await db.sessions.delete_many({"created_at": {"$lt": cutoff}})
             del_react = await db.reactions.delete_many({"created_at": {"$lt": cutoff}})
-            total = del_conf.deleted_count + del_comm.deleted_count + del_chat.deleted_count + del_sess.deleted_count + del_react.deleted_count
+
+            total = (
+                del_conf.deleted_count + del_comm.deleted_count +
+                del_chat.deleted_count + del_sess.deleted_count +
+                del_react.deleted_count
+            )
             if total > 0:
                 logger.info(f"Auto-delete: removed {total} old records")
+
         except Exception as e:
             logger.error(f"Auto-delete error: {e}")
+
         await asyncio.sleep(600)
+
 
 @app.on_event("startup")
 async def startup():
@@ -1035,9 +1340,11 @@ async def startup():
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
 
 @app.get("/admin.html", response_class=HTMLResponse)
 async def admin_panel():
@@ -1045,6 +1352,7 @@ async def admin_panel():
     if not admin_file.exists():
         raise HTTPException(status_code=404, detail="Admin panel not found")
     return HTMLResponse(content=admin_file.read_text())
+
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):

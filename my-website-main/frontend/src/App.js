@@ -29,42 +29,127 @@ import TermsPage from './pages/TermsPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import ContactPage from './pages/ContactPage';
 
-// Paths that are always public — never trigger onboarding/login
-const PUBLIC_PATHS = ['/terms', '/privacy', '/guidelines', '/about', '/contact'];
+import RoomsPage from './pages/RoomsPage';
+import RoomChatPage from './pages/RoomChatPage';
+
+// Paths that are always public
+const PUBLIC_PATHS = [
+  '/terms',
+  '/privacy',
+  '/guidelines',
+  '/about',
+  '/contact'
+];
 
 // Paths where BottomNav should be hidden
-const HIDDEN_NAV_PATHS = ['/chat', '/admin/dashboard', ...PUBLIC_PATHS];
+const HIDDEN_NAV_PATHS = [
+  '/chat',
+  '/rooms/',
+  '/admin/dashboard',
+  ...PUBLIC_PATHS
+];
 
-function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateClick }) {
+function MainLayout({
+  user,
+  refreshTrigger,
+  onCommentClick,
+  onReport,
+  onCreateClick
+}) {
   const location = useLocation();
-  const hideNav = HIDDEN_NAV_PATHS.some(path => location.pathname.startsWith(path));
+
+  const hideNav = HIDDEN_NAV_PATHS.some(path =>
+    location.pathname.startsWith(path)
+  );
 
   return (
     <>
       <Routes>
-        <Route path="/" element={<HomePage key={refreshTrigger} onCommentClick={onCommentClick} onReport={onReport} onCreateClick={onCreateClick} />} />
-        <Route path="/trending" element={<TrendingPage onCommentClick={onCommentClick} onReport={onReport} onCreateClick={onCreateClick} />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/chat" element={<StrangerChat />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="/"
+          element={
+            <HomePage
+              key={refreshTrigger}
+              onCommentClick={onCommentClick}
+              onReport={onReport}
+              onCreateClick={onCreateClick}
+            />
+          }
+        />
+
+        <Route
+          path="/trending"
+          element={
+            <TrendingPage
+              onCommentClick={onCommentClick}
+              onReport={onReport}
+              onCreateClick={onCreateClick}
+            />
+          }
+        />
+
+        <Route
+          path="/notifications"
+          element={<NotificationsPage />}
+        />
+
+        <Route
+          path="/chat"
+          element={<StrangerChat />}
+        />
+
+        {/* ROOMS */}
+        <Route
+          path="/rooms"
+          element={<RoomsPage />}
+        />
+
+        <Route
+          path="/rooms/:roomId"
+          element={<RoomChatPage />}
+        />
+
+        <Route
+          path="/admin/dashboard"
+          element={<AdminDashboard />}
+        />
+
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
       </Routes>
 
       {!hideNav && (
-        <BottomNav onCreateClick={onCreateClick} isAdmin={user?.role === 'admin'} />
+        <BottomNav
+          onCreateClick={onCreateClick}
+          isAdmin={user?.role === 'admin'}
+        />
       )}
     </>
   );
 }
 
 function AppContent() {
-  const { user, loading: authLoading, isOnboarded } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    isOnboarded
+  } = useAuth();
+
   const location = useLocation();
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedConfession, setSelectedConfession] = useState(null);
-  const [reportTarget, setReportTarget] = useState(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showCreateModal, setShowCreateModal] =
+    useState(false);
+
+  const [selectedConfession, setSelectedConfession] =
+    useState(null);
+
+  const [reportTarget, setReportTarget] =
+    useState(null);
+
+  const [refreshTrigger, setRefreshTrigger] =
+    useState(0);
 
   if (authLoading) {
     return (
@@ -74,20 +159,28 @@ function AppContent() {
     );
   }
 
-  // ✅ Check if the current path is a public page BEFORE any auth/onboarding gate
-  const isPublicPath = PUBLIC_PATHS.some(path => location.pathname.startsWith(path));
+  const isPublicPath = PUBLIC_PATHS.some(path =>
+    location.pathname.startsWith(path)
+  );
 
   return (
     <>
       <Routes>
-        {/* ✅ PUBLIC routes — always accessible, never redirected to login/onboarding */}
+        {/* PUBLIC ROUTES */}
         <Route path="/about" element={<AboutPage />} />
+
         <Route path="/privacy" element={<PrivacyPage />} />
+
         <Route path="/terms" element={<TermsPage />} />
-        <Route path="/guidelines" element={<GuidelinesPage />} />
+
+        <Route
+          path="/guidelines"
+          element={<GuidelinesPage />}
+        />
+
         <Route path="/contact" element={<ContactPage />} />
 
-        {/* 🔒 All other routes — gated by onboarding/auth */}
+        {/* PROTECTED ROUTES */}
         <Route
           path="/*"
           element={
@@ -100,7 +193,9 @@ function AppContent() {
                   refreshTrigger={refreshTrigger}
                   onCommentClick={setSelectedConfession}
                   onReport={setReportTarget}
-                  onCreateClick={() => setShowCreateModal(true)}
+                  onCreateClick={() =>
+                    setShowCreateModal(true)
+                  }
                 />
               </ProtectedRoute>
             )
@@ -108,18 +203,22 @@ function AppContent() {
         />
       </Routes>
 
-      {/* Modals — only render when not on a public page to avoid ghost overlays */}
+      {/* MODALS */}
       {!isPublicPath && showCreateModal && (
         <CreateConfessionModal
           onClose={() => setShowCreateModal(false)}
-          onSuccess={() => setRefreshTrigger(prev => prev + 1)}
+          onSuccess={() =>
+            setRefreshTrigger(prev => prev + 1)
+          }
         />
       )}
 
       {!isPublicPath && selectedConfession && (
         <CommentsModal
           confession={selectedConfession}
-          onClose={() => setSelectedConfession(null)}
+          onClose={() =>
+            setSelectedConfession(null)
+          }
         />
       )}
 
@@ -137,7 +236,12 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster position="top-center" theme="dark" richColors />
+        <Toaster
+          position="top-center"
+          theme="dark"
+          richColors
+        />
+
         <AppContent />
       </AuthProvider>
     </BrowserRouter>
