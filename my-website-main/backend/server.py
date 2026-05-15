@@ -250,7 +250,8 @@ def get_object(path: str) -> tuple[bytes, str]:
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
-# Models
+# ========================= MODELS =========================
+
 class Session(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -332,7 +333,7 @@ class ReportCreate(BaseModel):
 
 
 # =========================
-# ROOM MODELS (single definition, no duplicates)
+# ROOM MODELS
 # =========================
 
 class RoomCreate(BaseModel):
@@ -359,6 +360,10 @@ class RoomMessage(BaseModel):
     nickname: str
     type: str = "text"
     text: Optional[str] = None
+    image: Optional[str] = None   # image URL
+    gif: Optional[str] = None     # gif URL
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -372,7 +377,8 @@ class AdminToken(BaseModel):
     token_type: str = "bearer"
 
 
-# Helper functions
+# ========================= HELPERS =========================
+
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=24)):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + expires_delta
@@ -424,7 +430,8 @@ async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
         logger.error(f"Failed to delete from Cloudinary: {public_id} — {e}")
 
 
-# Routes
+# ========================= ROUTES =========================
+
 @api_router.get("/")
 async def root():
     return {"message": "Welcome to Whispero Nepal API"}
@@ -987,7 +994,6 @@ async def create_room(
 
 @api_router.get("/rooms")
 async def get_rooms():
-    # FIX: use expires_at (not created_at) so rooms live for their full 24-hour window
     now = datetime.now(timezone.utc).isoformat()
 
     rooms = await db.rooms.find(
@@ -1026,6 +1032,13 @@ async def get_room_messages(room_id: str):
 
 # =========================
 # ROOM WEBSOCKET
+# Supports message types:
+#   text    — plain text message (saved to DB, broadcast to all)
+#   image   — image URL message  (saved to DB, broadcast to all)
+#   gif     — gif URL message    (saved to DB, broadcast to all)
+#   file    — file URL + name    (saved to DB, broadcast to all)
+#   typing  — typing indicator   (NOT saved, broadcast to others only)
+#   members — request member list (returns members list to requester only)
 # =========================
 
 @app.websocket("/api/ws/rooms/{room_id}")
@@ -1046,6 +1059,7 @@ async def room_websocket(
         "nickname": nickname
     })
 
+    # Broadcast join system message to everyone in the room
     join_msg = {
         "id": str(uuid.uuid4()),
         "type": "system",
@@ -1053,36 +1067,140 @@ async def room_websocket(
         "created_at": datetime.now(timezone.utc).isoformat(),
         "online": len(room_connections[room_id])
     }
-
     for c in room_connections[room_id]:
         try:
             await c["ws"].send_json(join_msg)
         except:
             pass
 
+    # Send current members list to the newly joined user
+    try:
+        await websocket.send_json({
+            "type": "members",
+            "members": [c["nickname"] for c in room_connections[room_id]],
+            "online": len(room_connections[room_id])
+        })
+    except:
+        pass
+
     try:
         while True:
             data = await websocket.receive_json()
+            msg_type = data.get("type", "")
 
-            if data.get("type") not in ["text"]:
-                continue
+            # ── TEXT MESSAGE ──────────────────────────────────────────
+            if msg_type == "text":
+                text = data.get("text", "")
+                if not validate_message(text):
+                    continue
 
-            text = data.get("text", "")
+                message = RoomMessage(
+                    room_id=room_id,
+                    nickname=nickname,
+                    type="text",
+                    text=text
+                )
+                await db.room_messages.insert_one(message.model_dump())
 
-            if not validate_message(text):
-                continue
+                broadcast = message.model_dump()
+                broadcast["online"] = len(room_connections[room_id])
+                for c in room_connections[room_id]:
+                    try:
+                        await c["ws"].send_json(broadcast)
+                    except:
+                        pass
 
-            message = RoomMessage(
-                room_id=room_id,
-                nickname=nickname,
-                text=text
-            )
+            # ── IMAGE MESSAGE ─────────────────────────────────────────
+            elif msg_type == "image":
+                image_url = data.get("image", "")
+                if not image_url:
+                    continue
 
-            await db.room_messages.insert_one(message.model_dump())
+                message = RoomMessage(
+                    room_id=room_id,
+                    nickname=nickname,
+                    type="image",
+                    image=image_url
+                )
+                await db.room_messages.insert_one(message.model_dump())
 
-            for c in room_connections[room_id]:
+                broadcast = message.model_dump()
+                broadcast["online"] = len(room_connections[room_id])
+                for c in room_connections[room_id]:
+                    try:
+                        await c["ws"].send_json(broadcast)
+                    except:
+                        pass
+
+            # ── GIF MESSAGE ───────────────────────────────────────────
+            elif msg_type == "gif":
+                gif_url = data.get("gif", "")
+                if not gif_url:
+                    continue
+
+                message = RoomMessage(
+                    room_id=room_id,
+                    nickname=nickname,
+                    type="gif",
+                    gif=gif_url
+                )
+                await db.room_messages.insert_one(message.model_dump())
+
+                broadcast = message.model_dump()
+                broadcast["online"] = len(room_connections[room_id])
+                for c in room_connections[room_id]:
+                    try:
+                        await c["ws"].send_json(broadcast)
+                    except:
+                        pass
+
+            # ── FILE MESSAGE ──────────────────────────────────────────
+            elif msg_type == "file":
+                file_url = data.get("file_url", "")
+                file_name = data.get("file_name", "file")
+                if not file_url:
+                    continue
+
+                message = RoomMessage(
+                    room_id=room_id,
+                    nickname=nickname,
+                    type="file",
+                    file_url=file_url,
+                    file_name=file_name
+                )
+                await db.room_messages.insert_one(message.model_dump())
+
+                broadcast = message.model_dump()
+                broadcast["online"] = len(room_connections[room_id])
+                for c in room_connections[room_id]:
+                    try:
+                        await c["ws"].send_json(broadcast)
+                    except:
+                        pass
+
+            # ── TYPING INDICATOR ──────────────────────────────────────
+            # Not saved to DB. Sent to everyone EXCEPT the sender.
+            elif msg_type == "typing":
+                typing_msg = {
+                    "type": "typing",
+                    "nickname": nickname,
+                }
+                for c in room_connections[room_id]:
+                    if c["ws"] != websocket:
+                        try:
+                            await c["ws"].send_json(typing_msg)
+                        except:
+                            pass
+
+            # ── MEMBERS REQUEST ───────────────────────────────────────
+            # Returns live member list only to the requester.
+            elif msg_type == "members":
                 try:
-                    await c["ws"].send_json(message.model_dump())
+                    await websocket.send_json({
+                        "type": "members",
+                        "members": [c["nickname"] for c in room_connections[room_id]],
+                        "online": len(room_connections[room_id])
+                    })
                 except:
                     pass
 
@@ -1099,16 +1217,26 @@ async def room_websocket(
             "created_at": datetime.now(timezone.utc).isoformat(),
             "online": len(room_connections[room_id])
         }
-
         for c in room_connections[room_id]:
             try:
                 await c["ws"].send_json(leave_msg)
             except:
                 pass
 
+        # Broadcast updated members list after someone leaves
+        updated_members = {
+            "type": "members",
+            "members": [c["nickname"] for c in room_connections[room_id]],
+            "online": len(room_connections[room_id])
+        }
+        for c in room_connections[room_id]:
+            try:
+                await c["ws"].send_json(updated_members)
+            except:
+                pass
+
 
 @api_router.get("/online-count")
-
 async def get_online_count():
     return {"online": stranger_chat_manager.online_count, "waiting": len(stranger_chat_manager.waiting_users)}
 
@@ -1249,8 +1377,6 @@ app.include_router(api_router)
 
 # =========================
 # 24-HOUR AUTO-DELETE TASK
-# FIX: Rooms are now deleted by expires_at (not created_at),
-#      so newly created rooms survive their full 24-hour window.
 # =========================
 
 async def auto_delete_old_data():
@@ -1260,17 +1386,14 @@ async def auto_delete_old_data():
             cutoff = (now - timedelta(hours=24)).isoformat()
             now_iso = now.isoformat()
 
-            # Delete confessions, comments, chat messages older than 24h
             del_conf = await db.confessions.delete_many({"created_at": {"$lt": cutoff}})
             del_comm = await db.comments.delete_many({"created_at": {"$lt": cutoff}})
             del_chat = await db.chat_messages.delete_many({"created_at": {"$lt": cutoff}})
 
-            # FIX: Delete rooms whose expires_at has passed (not based on created_at)
             deleted_rooms = await db.rooms.delete_many({
                 "expires_at": {"$lt": now_iso}
             })
 
-            # Delete room messages for expired rooms OR messages older than 24h
             active_rooms = await db.rooms.find({}, {"_id": 0, "id": 1}).to_list(1000)
             active_room_ids = [r["id"] for r in active_rooms]
 
@@ -1286,7 +1409,6 @@ async def auto_delete_old_data():
                 f"{deleted_room_messages.deleted_count} room messages"
             )
 
-            # Delete old files from Cloudinary
             old_files = await db.files.find(
                 {"created_at": {"$lt": cutoff}, "is_deleted": False}, {"_id": 0}
             ).to_list(1000)
