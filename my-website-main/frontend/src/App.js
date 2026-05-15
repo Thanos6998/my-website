@@ -29,11 +29,15 @@ import TermsPage from './pages/TermsPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import ContactPage from './pages/ContactPage';
 
+// Paths that are always public — never trigger onboarding/login
+const PUBLIC_PATHS = ['/terms', '/privacy', '/guidelines', '/about', '/contact'];
+
+// Paths where BottomNav should be hidden
+const HIDDEN_NAV_PATHS = ['/chat', '/admin/dashboard', ...PUBLIC_PATHS];
+
 function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateClick }) {
   const location = useLocation();
-
-  const hiddenNavPaths = ['/chat', '/admin/dashboard', '/about', '/privacy', '/terms', '/guidelines', '/contact'];
-  const hideNav = hiddenNavPaths.some(path => location.pathname.startsWith(path));
+  const hideNav = HIDDEN_NAV_PATHS.some(path => location.pathname.startsWith(path));
 
   return (
     <>
@@ -43,11 +47,6 @@ function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateCl
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/chat" element={<StrangerChat />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/guidelines" element={<GuidelinesPage />} />
-        <Route path="/contact" element={<ContactPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -60,6 +59,8 @@ function MainLayout({ user, refreshTrigger, onCommentClick, onReport, onCreateCl
 
 function AppContent() {
   const { user, loading: authLoading, isOnboarded } = useAuth();
+  const location = useLocation();
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedConfession, setSelectedConfession] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
@@ -73,17 +74,20 @@ function AppContent() {
     );
   }
 
+  // ✅ Check if the current path is a public page BEFORE any auth/onboarding gate
+  const isPublicPath = PUBLIC_PATHS.some(path => location.pathname.startsWith(path));
+
   return (
     <>
       <Routes>
-        {/* ✅ PUBLIC routes — accessible WITHOUT login */}
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/guidelines" element={<GuidelinesPage />} />
+        {/* ✅ PUBLIC routes — always accessible, never redirected to login/onboarding */}
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/guidelines" element={<GuidelinesPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
-        {/* 🔒 PROTECTED routes — show onboarding if not logged in */}
+        {/* 🔒 All other routes — gated by onboarding/auth */}
         <Route
           path="/*"
           element={
@@ -104,21 +108,22 @@ function AppContent() {
         />
       </Routes>
 
-      {showCreateModal && (
+      {/* Modals — only render when not on a public page to avoid ghost overlays */}
+      {!isPublicPath && showCreateModal && (
         <CreateConfessionModal
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => setRefreshTrigger(prev => prev + 1)}
         />
       )}
 
-      {selectedConfession && (
+      {!isPublicPath && selectedConfession && (
         <CommentsModal
           confession={selectedConfession}
           onClose={() => setSelectedConfession(null)}
         />
       )}
 
-      {reportTarget && (
+      {!isPublicPath && reportTarget && (
         <ReportModal
           target={reportTarget}
           onClose={() => setReportTarget(null)}
