@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException, Header, Query, WebSocket, WebSocketDisconnect, Depends
 from fastapi.responses import Response, HTMLResponse
 from dotenv import load_dotenv
-
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -24,7 +23,7 @@ import json
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# MongoDB
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -34,15 +33,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
 
-# Object Storage (legacy fallback)
+# Legacy storage
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
 APP_NAME = os.environ.get("APP_NAME", "whispero-nepal")
 storage_key = None
 
-# Create the main app
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -52,12 +49,11 @@ app.add_middleware(
 )
 api_router = APIRouter(prefix="/api")
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ── WebSocket Managers ────────────────────────────────────────────────────────
 
-# WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict = defaultdict(list)
@@ -77,7 +73,6 @@ class ConnectionManager:
                 pass
 
 
-# Random Chat Manager
 class RandomChatManager:
     def __init__(self):
         self.waiting_queue: list = []
@@ -87,7 +82,6 @@ class RandomChatManager:
         if self.waiting_queue:
             partner_id = self.waiting_queue.pop(0)
             if partner_id not in self.active_chats:
-                logger.error(f"Partner {partner_id} not in active_chats!")
                 return await self.find_match(session_id, websocket)
             partner_ws = self.active_chats[partner_id]["websocket"]
             room_id = f"random_{uuid.uuid4()}"
@@ -96,12 +90,10 @@ class RandomChatManager:
             self.active_chats[partner_id]["room_id"] = room_id
             await websocket.send_json({"type": "matched", "room_id": room_id})
             await partner_ws.send_json({"type": "matched", "room_id": room_id})
-            logger.info(f"Matched {session_id} with {partner_id}")
             return room_id
         self.waiting_queue.append(session_id)
         self.active_chats[session_id] = {"websocket": websocket}
         await websocket.send_json({"type": "waiting"})
-        logger.info(f"User {session_id} added to waiting queue. Queue: {len(self.waiting_queue)}")
         return None
 
     async def disconnect_user(self, session_id: str):
@@ -119,7 +111,6 @@ class RandomChatManager:
             self.waiting_queue.remove(session_id)
 
 
-# Stranger Chat Manager
 class StrangerChatManager:
     def __init__(self):
         self.waiting_users = []
@@ -130,7 +121,7 @@ class StrangerChatManager:
     def _is_ws_open(self, ws):
         try:
             return ws.client_state.name == "CONNECTED"
-        except Exception:
+        except:
             return False
 
     async def add_user(self, user_id, websocket):
@@ -146,7 +137,7 @@ class StrangerChatManager:
                     continue
                 try:
                     await partner_ws.send_json({'type': 'ping'})
-                except Exception:
+                except:
                     self.waiting_users.pop(0)
                     self.online_count = max(0, self.online_count - 1)
                     continue
@@ -155,16 +146,14 @@ class StrangerChatManager:
                 self.connections[partner_id] = {'partner_id': user_id, 'websocket': partner_ws}
                 try:
                     await websocket.send_json({'type': 'matched', 'partner_id': partner_id})
-                except Exception:
+                except:
                     pass
                 try:
                     await partner_ws.send_json({'type': 'matched', 'partner_id': user_id})
-                except Exception:
+                except:
                     pass
-                logger.info(f"Matched {user_id} with {partner_id}")
                 return True
             self.waiting_users.append({'user_id': user_id, 'websocket': websocket})
-            logger.info(f"User {user_id} waiting. Queue: {len(self.waiting_users)}")
             return False
 
     async def send_message(self, user_id, message_data):
@@ -182,7 +171,7 @@ class StrangerChatManager:
             try:
                 await partner_ws.send_json(message_data)
                 return 'ok'
-            except Exception as e:
+            except:
                 if attempt == 0:
                     await asyncio.sleep(0.1)
                 else:
@@ -214,17 +203,19 @@ class StrangerChatManager:
                     try:
                         if self._is_ws_open(partner_ws):
                             await partner_ws.send_json({'type': 'disconnected'})
-                    except Exception:
+                    except:
                         pass
-        logger.info(f"User {user_id} disconnected")
 
 
 stranger_chat_manager = StrangerChatManager()
 manager = ConnectionManager()
 random_chat_manager = RandomChatManager()
 
+# Room connections: room_id -> list of {ws, nickname, is_anon}
+room_connections: dict = defaultdict(list)
 
-# Storage functions (legacy fallback)
+# ── Storage helpers ───────────────────────────────────────────────────────────
+
 def init_storage():
     global storage_key
     if storage_key:
@@ -233,24 +224,18 @@ def init_storage():
         resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
         resp.raise_for_status()
         storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
         return storage_key
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
         raise
 
-
 def get_object(path: str) -> tuple[bytes, str]:
     key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key}, timeout=60
-    )
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
-
-# ========================= MODELS =========================
+# ── Models ────────────────────────────────────────────────────────────────────
 
 class Session(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -259,10 +244,8 @@ class Session(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     safe_mode: bool = True
 
-
 class SessionCreate(BaseModel):
     device_id: str
-
 
 class Confession(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -285,14 +268,12 @@ class Confession(BaseModel):
     comments_count: int = 0
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-
 class ConfessionCreate(BaseModel):
     text: str
     category: Literal["love", "college", "secrets", "life"]
     nickname: Optional[str] = None
     is_adult: bool = False
     city: Optional[str] = None
-
 
 class Comment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -305,15 +286,12 @@ class Comment(BaseModel):
     replies_count: int = 0
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-
 class CommentCreate(BaseModel):
     text: str
     nickname: Optional[str] = None
 
-
 class Reaction(BaseModel):
     type: Literal["like", "dislike", "laugh", "sad", "angry", "fire"]
-
 
 class Report(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -325,67 +303,26 @@ class Report(BaseModel):
     status: Literal["pending", "resolved", "ignored"] = "pending"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-
 class ReportCreate(BaseModel):
     target_type: Literal["confession", "comment"]
     target_id: str
     reason: str
 
-
-# =========================
-# ROOM MODELS
-# =========================
-
-class RoomCreate(BaseModel):
-    name: str
-    emoji: Optional[str] = "💬"
-
-
-class Room(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    emoji: str = "💬"
-    creator_session_id: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    expires_at: str = Field(
-        default_factory=lambda: (
-            datetime.now(timezone.utc) + timedelta(hours=24)
-        ).isoformat()
-    )
-
-
-class RoomMessage(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    room_id: str
-    nickname: str
-    type: str = "text"
-    text: Optional[str] = None
-    image: Optional[str] = None   # image URL
-    gif: Optional[str] = None     # gif URL
-    file_url: Optional[str] = None
-    file_name: Optional[str] = None
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
 class AdminLogin(BaseModel):
     email: str
     password: str
-
 
 class AdminToken(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-
-# ========================= HELPERS =========================
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(hours=24)):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    return encoded_jwt
-
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 async def verify_admin_token(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
@@ -397,20 +334,14 @@ async def verify_admin_token(authorization: str = Header(None)):
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-
 def generate_nickname():
     adjectives = ["Anonymous", "Secret", "Hidden", "Mystery", "Silent", "Quiet", "Shy", "Bold"]
     nouns = ["Heart", "Soul", "Mind", "Spirit", "Voice", "Whisper", "Dreamer", "Wanderer"]
     import secrets
     return f"{secrets.choice(adjectives)} {secrets.choice(nouns)}"
 
-
 async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) -> dict:
-    """Upload bytes to Cloudinary and return result."""
-    if content_type and content_type.startswith("video/"):
-        resource_type = "video"
-    else:
-        resource_type = "image"
+    resource_type = "video" if content_type and content_type.startswith("video/") else "image"
     result = cloudinary.uploader.upload(
         io.BytesIO(contents),
         resource_type=resource_type,
@@ -420,22 +351,22 @@ async def upload_to_cloudinary(contents: bytes, content_type: str, folder: str) 
     )
     return result
 
-
 async def delete_from_cloudinary(public_id: str, resource_type: str = "image"):
-    """Delete media from Cloudinary by public_id."""
     try:
         cloudinary.uploader.destroy(public_id, resource_type=resource_type)
         logger.info(f"Deleted from Cloudinary: {public_id}")
     except Exception as e:
         logger.error(f"Failed to delete from Cloudinary: {public_id} — {e}")
 
-
-# ========================= ROUTES =========================
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @api_router.get("/")
 async def root():
     return {"message": "Welcome to Whispero Nepal API"}
 
+@api_router.get("/ping")
+async def ping():
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @api_router.post("/auth/session", response_model=Session)
 async def create_session(input: SessionCreate):
@@ -446,7 +377,6 @@ async def create_session(input: SessionCreate):
     await db.sessions.insert_one(session.model_dump())
     return session
 
-
 @api_router.post("/admin/login", response_model=AdminToken)
 async def admin_login(input: AdminLogin):
     admin = await db.admins.find_one({"email": input.email}, {"_id": 0})
@@ -454,7 +384,6 @@ async def admin_login(input: AdminLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token = create_access_token({"sub": admin["email"], "role": "admin"})
     return AdminToken(access_token=access_token)
-
 
 @api_router.post("/confessions", response_model=Confession)
 async def create_confession(
@@ -469,33 +398,22 @@ async def create_confession(
     session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
-
     media_url, media_type, media_public_id = None, None, None
     if media and media.filename:
         media_url, media_type, media_public_id = await _process_confession_media(media, session_id)
-
     confession = Confession(
-        session_id=session_id,
-        text=text,
-        category=category,
+        session_id=session_id, text=text, category=category,
         nickname=nickname or generate_nickname(),
-        is_adult=is_adult,
-        city=city,
-        media_url=media_url,
-        media_type=media_type,
-        public_id=media_public_id,
+        is_adult=is_adult, city=city,
+        media_url=media_url, media_type=media_type, public_id=media_public_id,
     )
     await db.confessions.insert_one(confession.model_dump())
     return confession
 
-
 async def _process_confession_media(media: UploadFile, session_id: str):
-    """Upload confession media to Cloudinary. Returns (media_url, media_type, public_id)."""
     contents = await media.read()
-
     if not contents:
         raise HTTPException(status_code=400, detail="Empty file received")
-
     size_mb = len(contents) / (1024 * 1024)
     if media.content_type and media.content_type.startswith("image/"):
         if size_mb > 2:
@@ -507,9 +425,7 @@ async def _process_confession_media(media: UploadFile, session_id: str):
         media_type = "video"
     else:
         media_type = None
-
     result = await upload_to_cloudinary(contents, media.content_type, "whispero/confessions")
-
     await db.files.insert_one({
         "id": str(uuid.uuid4()),
         "storage_path": result["secure_url"],
@@ -520,27 +436,21 @@ async def _process_confession_media(media: UploadFile, session_id: str):
         "is_deleted": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-
     return result["secure_url"], media_type, result["public_id"]
-
 
 @api_router.get("/confessions", response_model=List[Confession])
 async def get_confessions(
-    skip: int = Query(0),
-    limit: int = Query(20),
+    skip: int = Query(0), limit: int = Query(20),
     category: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
     sort: Literal["latest", "trending"] = Query("latest")
 ):
     query = {}
-    if category:
-        query["category"] = category
-    if city:
-        query["city"] = city
+    if category: query["category"] = category
+    if city: query["city"] = city
     sort_field = "created_at" if sort == "latest" else "likes"
     confessions = await db.confessions.find(query, {"_id": 0}).sort(sort_field, -1).skip(skip).limit(limit).to_list(limit)
     return confessions
-
 
 @api_router.get("/confessions/{confession_id}", response_model=Confession)
 async def get_confession(confession_id: str):
@@ -549,139 +459,74 @@ async def get_confession(confession_id: str):
         raise HTTPException(status_code=404, detail="Confession not found")
     return Confession(**confession)
 
-
 @api_router.post("/confessions/{confession_id}/react")
 async def react_to_confession(
-    confession_id: str,
-    reaction: Reaction,
+    confession_id: str, reaction: Reaction,
     session_id: str = Header(..., alias="X-Session-Id")
 ):
     confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
-
-    REACTION_FIELDS = {
-        "like": "likes", "dislike": "dislikes", "laugh": "laughs",
-        "sad": "sads", "angry": "angrys", "fire": "fires"
-    }
-
-    existing_reaction = await db.reactions.find_one(
-        {"confession_id": confession_id, "session_id": session_id}, {"_id": 0}
-    )
-
-    if existing_reaction:
-        old_type = existing_reaction["type"]
+    REACTION_FIELDS = {"like":"likes","dislike":"dislikes","laugh":"laughs","sad":"sads","angry":"angrys","fire":"fires"}
+    existing = await db.reactions.find_one({"confession_id": confession_id, "session_id": session_id}, {"_id": 0})
+    if existing:
+        old_type = existing["type"]
         if old_type == reaction.type:
             await db.reactions.delete_one({"confession_id": confession_id, "session_id": session_id})
             old_field = REACTION_FIELDS.get(old_type)
             if old_field:
                 await db.confessions.update_one({"id": confession_id}, {"$inc": {old_field: -1}})
             return {"message": "Reaction removed", "action": "removed"}
-        await db.reactions.update_one(
-            {"confession_id": confession_id, "session_id": session_id},
-            {"$set": {"type": reaction.type}}
-        )
-        old_field = REACTION_FIELDS.get(old_type)
-        new_field = REACTION_FIELDS.get(reaction.type)
+        await db.reactions.update_one({"confession_id": confession_id, "session_id": session_id}, {"$set": {"type": reaction.type}})
         inc_update = {}
-        if old_field:
-            inc_update[old_field] = -1
-        if new_field:
-            inc_update[new_field] = 1
-        if inc_update:
-            await db.confessions.update_one({"id": confession_id}, {"$inc": inc_update})
+        if REACTION_FIELDS.get(old_type): inc_update[REACTION_FIELDS[old_type]] = -1
+        if REACTION_FIELDS.get(reaction.type): inc_update[REACTION_FIELDS[reaction.type]] = 1
+        if inc_update: await db.confessions.update_one({"id": confession_id}, {"$inc": inc_update})
     else:
-        await db.reactions.insert_one({
-            "id": str(uuid.uuid4()),
-            "confession_id": confession_id,
-            "session_id": session_id,
-            "type": reaction.type,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
+        await db.reactions.insert_one({"id": str(uuid.uuid4()), "confession_id": confession_id, "session_id": session_id, "type": reaction.type, "created_at": datetime.now(timezone.utc).isoformat()})
         new_field = REACTION_FIELDS.get(reaction.type)
-        if new_field:
-            await db.confessions.update_one({"id": confession_id}, {"$inc": {new_field: 1}})
-
+        if new_field: await db.confessions.update_one({"id": confession_id}, {"$inc": {new_field: 1}})
     return {"message": "Reaction recorded", "action": "added"}
-
 
 @api_router.get("/confessions/{confession_id}/comments", response_model=List[Comment])
 async def get_comments(confession_id: str, skip: int = Query(0), limit: int = Query(50)):
-    comments = await db.comments.find(
-        {"confession_id": confession_id, "parent_id": None}, {"_id": 0}
-    ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    comments = await db.comments.find({"confession_id": confession_id, "parent_id": None}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return comments
 
-
 @api_router.post("/confessions/{confession_id}/comments", response_model=Comment)
-async def create_comment(
-    confession_id: str,
-    input: CommentCreate,
-    session_id: str = Header(..., alias="X-Session-Id")
-):
+async def create_comment(confession_id: str, input: CommentCreate, session_id: str = Header(..., alias="X-Session-Id")):
     confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
-    comment = Comment(
-        confession_id=confession_id,
-        session_id=session_id,
-        text=input.text,
-        nickname=input.nickname or generate_nickname()
-    )
+    comment = Comment(confession_id=confession_id, session_id=session_id, text=input.text, nickname=input.nickname or generate_nickname())
     await db.comments.insert_one(comment.model_dump())
     await db.confessions.update_one({"id": confession_id}, {"$inc": {"comments_count": 1}})
     return comment
 
-
 @api_router.get("/confessions/{confession_id}/comments/{comment_id}/replies", response_model=List[Comment])
 async def get_replies(confession_id: str, comment_id: str, skip: int = Query(0), limit: int = Query(50)):
-    replies = await db.comments.find(
-        {"confession_id": confession_id, "parent_id": comment_id}, {"_id": 0}
-    ).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
+    replies = await db.comments.find({"confession_id": confession_id, "parent_id": comment_id}, {"_id": 0}).sort("created_at", 1).skip(skip).limit(limit).to_list(limit)
     return replies
 
-
 @api_router.post("/confessions/{confession_id}/comments/{comment_id}/replies", response_model=Comment)
-async def create_reply(
-    confession_id: str,
-    comment_id: str,
-    input: CommentCreate,
-    session_id: str = Header(..., alias="X-Session-Id")
-):
+async def create_reply(confession_id: str, comment_id: str, input: CommentCreate, session_id: str = Header(..., alias="X-Session-Id")):
     parent = await db.comments.find_one({"id": comment_id, "confession_id": confession_id}, {"_id": 0})
     if not parent:
         raise HTTPException(status_code=404, detail="Parent comment not found")
-    reply = Comment(
-        confession_id=confession_id,
-        session_id=session_id,
-        text=input.text,
-        nickname=input.nickname or generate_nickname(),
-        parent_id=comment_id
-    )
+    reply = Comment(confession_id=confession_id, session_id=session_id, text=input.text, nickname=input.nickname or generate_nickname(), parent_id=comment_id)
     await db.comments.insert_one(reply.model_dump())
     await db.comments.update_one({"id": comment_id}, {"$inc": {"replies_count": 1}})
     await db.confessions.update_one({"id": confession_id}, {"$inc": {"comments_count": 1}})
     return reply
 
-
 @api_router.post("/reports", response_model=Report)
-async def create_report(
-    input: ReportCreate,
-    session_id: str = Header(..., alias="X-Session-Id")
-):
-    report = Report(
-        target_type=input.target_type,
-        target_id=input.target_id,
-        reporter_session_id=session_id,
-        reason=input.reason
-    )
+async def create_report(input: ReportCreate, session_id: str = Header(..., alias="X-Session-Id")):
+    report = Report(target_type=input.target_type, target_id=input.target_id, reporter_session_id=session_id, reason=input.reason)
     await db.reports.insert_one(report.model_dump())
     report_count = await db.reports.count_documents({"target_type": input.target_type, "target_id": input.target_id})
-    if report_count >= 5:
-        if input.target_type == "confession":
-            await db.confessions.update_one({"id": input.target_id}, {"$set": {"is_hidden": True}})
+    if report_count >= 5 and input.target_type == "confession":
+        await db.confessions.update_one({"id": input.target_id}, {"$set": {"is_hidden": True}})
     return report
-
 
 @api_router.get("/files/{path:path}")
 async def download_file(path: str):
@@ -701,26 +546,21 @@ async def download_file(path: str):
         logger.error(f"Error downloading file: {e}")
         raise HTTPException(status_code=500, detail="Error downloading file")
 
-
 @api_router.get("/admin/reports", response_model=List[Report])
 async def get_reports(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     reports = await db.reports.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return reports
-
 
 @api_router.delete("/admin/confessions/{confession_id}")
 async def delete_confession(confession_id: str, admin: dict = Depends(verify_admin_token)):
     confession = await db.confessions.find_one({"id": confession_id}, {"_id": 0})
     if not confession:
         raise HTTPException(status_code=404, detail="Confession not found")
-
     if confession.get("public_id"):
         resource_type = "video" if confession.get("media_type") == "video" else "image"
         await delete_from_cloudinary(confession["public_id"], resource_type)
-
     await db.confessions.delete_one({"id": confession_id})
     return {"message": "Confession deleted"}
-
 
 @api_router.delete("/admin/comments/{comment_id}")
 async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_token)):
@@ -729,13 +569,8 @@ async def delete_comment(comment_id: str, admin: dict = Depends(verify_admin_tok
         raise HTTPException(status_code=404, detail="Comment not found")
     return {"message": "Comment deleted"}
 
-
 @api_router.delete("/chat-media/cleanup")
-async def cleanup_chat_media(
-    session_id: str = Header(..., alias="X-Session-Id"),
-    public_ids: List[str] = None
-):
-    """Delete chat media from Cloudinary when chat ends."""
+async def cleanup_chat_media(session_id: str = Header(..., alias="X-Session-Id"), public_ids: List[str] = None):
     if not public_ids:
         return {"message": "Nothing to delete"}
     for public_id in public_ids:
@@ -744,74 +579,42 @@ async def cleanup_chat_media(
                 cloudinary.uploader.destroy(public_id, resource_type="image")
             except:
                 cloudinary.uploader.destroy(public_id, resource_type="video")
-            await db.files.update_one(
-                {"public_id": public_id},
-                {"$set": {"is_deleted": True}}
-            )
+            await db.files.update_one({"public_id": public_id}, {"$set": {"is_deleted": True}})
         except Exception as e:
             logger.error(f"Failed to delete chat media {public_id}: {e}")
     return {"message": f"Deleted {len(public_ids)} files"}
 
-
 @api_router.post("/upload-chat-media")
-async def upload_chat_media(
-    session_id: str = Header(..., alias="X-Session-Id"),
-    media: UploadFile = File(...)
-):
+async def upload_chat_media(session_id: str = Header(..., alias="X-Session-Id"), media: UploadFile = File(...)):
     session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
-
     contents = await media.read()
     if not contents:
         raise HTTPException(status_code=400, detail="Empty file")
-
     size_mb = len(contents) / (1024 * 1024)
-    if media.content_type and media.content_type.startswith("image/"):
-        if size_mb > 2:
-            raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
-    elif media.content_type and media.content_type.startswith("video/"):
-        if size_mb > 10:
-            raise HTTPException(status_code=400, detail="Video size exceeds 10MB")
-
+    if media.content_type and media.content_type.startswith("image/") and size_mb > 2:
+        raise HTTPException(status_code=400, detail="Image size exceeds 2MB")
+    elif media.content_type and media.content_type.startswith("video/") and size_mb > 10:
+        raise HTTPException(status_code=400, detail="Video size exceeds 10MB")
     result = await upload_to_cloudinary(contents, media.content_type, "whispero/chat")
-
-    await db.files.insert_one({
-        "id": str(uuid.uuid4()),
-        "storage_path": result["secure_url"],
-        "public_id": result["public_id"],
-        "original_filename": media.filename,
-        "content_type": media.content_type,
-        "size": result["bytes"],
-        "is_deleted": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-
+    await db.files.insert_one({"id": str(uuid.uuid4()), "storage_path": result["secure_url"], "public_id": result["public_id"], "original_filename": media.filename, "content_type": media.content_type, "size": result["bytes"], "is_deleted": False, "created_at": datetime.now(timezone.utc).isoformat()})
     return {"media_url": result["secure_url"], "public_id": result["public_id"]}
 
-
 @api_router.post("/upload-compressed-media")
-async def upload_compressed_media(
-    session_id: str = Header(..., alias="X-Session-Id"),
-    media: UploadFile = File(...)
-):
+async def upload_compressed_media(session_id: str = Header(..., alias="X-Session-Id"), media: UploadFile = File(...)):
     session = await db.sessions.find_one({"id": session_id}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
-
     contents = await media.read()
     content_type = media.content_type or "application/octet-stream"
     ext = media.filename.split(".")[-1] if "." in media.filename else "bin"
-
     contents, content_type = _compress_image(contents, content_type, ext)
-
     size_mb = len(contents) / (1024 * 1024)
     if size_mb > 5:
         raise HTTPException(status_code=400, detail="File size exceeds 5MB")
-
     result = await upload_to_cloudinary(contents, content_type, "whispero/compressed")
     return {"media_url": result["secure_url"], "size": result["bytes"]}
-
 
 def _compress_image(data: bytes, content_type: str, ext: str) -> tuple:
     if not content_type.startswith("image/") or ext.lower() not in ("jpg", "jpeg", "png", "webp"):
@@ -829,20 +632,13 @@ def _compress_image(data: bytes, content_type: str, ext: str) -> tuple:
         img_clean.save(buf, format=fmt, quality=80, optimize=True)
         return buf.getvalue(), f"image/{fmt.lower()}"
     except Exception as e:
-        logger.warning(f"Image compression failed, uploading original: {e}")
+        logger.warning(f"Image compression failed: {e}")
         return data, content_type
-
 
 @api_router.post("/admin/ban-session")
 async def ban_session(session_id: str = Query(...), reason: str = Query(...), admin: dict = Depends(verify_admin_token)):
-    await db.banned_sessions.insert_one({
-        "id": str(uuid.uuid4()),
-        "session_id": session_id,
-        "reason": reason,
-        "banned_at": datetime.now(timezone.utc).isoformat()
-    })
+    await db.banned_sessions.insert_one({"id": str(uuid.uuid4()), "session_id": session_id, "reason": reason, "banned_at": datetime.now(timezone.utc).isoformat()})
     return {"message": "Session banned"}
-
 
 @api_router.get("/admin/analytics")
 async def admin_analytics(admin: dict = Depends(verify_admin_token)):
@@ -857,28 +653,11 @@ async def admin_analytics(admin: dict = Depends(verify_admin_token)):
     categories = await db.confessions.aggregate(category_pipeline).to_list(10)
     category_data = [{"name": c["_id"], "count": c["count"]} for c in categories]
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    daily_pipeline = [
-        {"$match": {"created_at": {"$gte": seven_days_ago}}},
-        {"$addFields": {"day": {"$substr": ["$created_at", 0, 10]}}},
-        {"$group": {"_id": "$day", "count": {"$sum": 1}}},
-        {"$sort": {"_id": 1}}
-    ]
+    daily_pipeline = [{"$match": {"created_at": {"$gte": seven_days_ago}}}, {"$addFields": {"day": {"$substr": ["$created_at", 0, 10]}}}, {"$group": {"_id": "$day", "count": {"$sum": 1}}}, {"$sort": {"_id": 1}}]
     daily_posts = await db.confessions.aggregate(daily_pipeline).to_list(30)
     daily_data = [{"date": d["_id"], "posts": d["count"]} for d in daily_posts]
     top_confessions = await db.confessions.find({}, {"_id": 0}).sort("likes", -1).limit(5).to_list(5)
-    return {
-        "total_confessions": total_confessions,
-        "total_comments": total_comments,
-        "total_reports": total_reports,
-        "pending_reports": pending_reports,
-        "total_sessions": total_sessions,
-        "total_files": total_files,
-        "total_banned": total_banned,
-        "category_data": category_data,
-        "daily_data": daily_data,
-        "top_confessions": top_confessions
-    }
-
+    return {"total_confessions": total_confessions, "total_comments": total_comments, "total_reports": total_reports, "pending_reports": pending_reports, "total_sessions": total_sessions, "total_files": total_files, "total_banned": total_banned, "category_data": category_data, "daily_data": daily_data, "top_confessions": top_confessions}
 
 @api_router.get("/admin/sessions")
 async def admin_sessions(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
@@ -888,33 +667,27 @@ async def admin_sessions(skip: int = Query(0), limit: int = Query(50), admin: di
         s["is_banned"] = s.get("id") in banned_ids
     return sessions
 
-
 @api_router.get("/admin/comments")
 async def admin_comments(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     comments = await db.comments.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return comments
-
 
 @api_router.get("/admin/images")
 async def admin_images(skip: int = Query(0), limit: int = Query(50), admin: dict = Depends(verify_admin_token)):
     files = await db.files.find({"is_deleted": False}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     return files
 
-
 @api_router.delete("/admin/images/{file_id}")
 async def admin_delete_image(file_id: str, admin: dict = Depends(verify_admin_token)):
     file = await db.files.find_one({"id": file_id}, {"_id": 0})
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
-
     if file.get("public_id"):
         content_type = file.get("content_type", "")
         resource_type = "video" if content_type.startswith("video/") else "image"
         await delete_from_cloudinary(file["public_id"], resource_type)
-
     await db.files.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
     return {"message": "File deleted"}
-
 
 @api_router.post("/admin/reports/{report_id}/resolve")
 async def resolve_report(report_id: str, action: str = Query(...), admin: dict = Depends(verify_admin_token)):
@@ -924,161 +697,81 @@ async def resolve_report(report_id: str, action: str = Query(...), admin: dict =
         raise HTTPException(status_code=404, detail="Report not found")
     return {"message": f"Report {status}"}
 
-
 @api_router.get("/confessions/featured/top")
 async def get_confession_of_the_day():
     twenty_four_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    top = await db.confessions.find(
-        {"created_at": {"$gte": twenty_four_hours_ago}}, {"_id": 0}
-    ).sort("likes", -1).limit(1).to_list(1)
+    top = await db.confessions.find({"created_at": {"$gte": twenty_four_hours_ago}}, {"_id": 0}).sort("likes", -1).limit(1).to_list(1)
     if not top:
         top = await db.confessions.find({}, {"_id": 0}).sort("likes", -1).limit(1).to_list(1)
     return top[0] if top else None
 
+@api_router.get("/online-count")
+async def get_online_count():
+    return {"online": stranger_chat_manager.online_count, "waiting": len(stranger_chat_manager.waiting_users)}
 
-# =========================
-# DYNAMIC CHAT ROOMS SYSTEM
-# =========================
-
-room_connections = defaultdict(list)
-
-MAX_ROOMS_PER_DAY = 5
-
-
-def clean_room_name(name: str) -> str:
-    return name.strip()[:40]
-
-
-def validate_message(text: str) -> bool:
-    """Return True only if text is non-empty and within 500 chars."""
-    return 0 < len(text.strip()) <= 500
-
-
-# =========================
-# CREATE ROOM
-# =========================
-
-@api_router.post("/rooms/create")
-async def create_room(
-    input: RoomCreate,
-    session_id: str = Header(..., alias="X-Session-Id")
-):
-    session = await db.sessions.find_one({"id": session_id})
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
-
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-
-    count = await db.rooms.count_documents({
-        "creator_session_id": session_id,
-        "created_at": {"$gte": since.isoformat()}
-    })
-
-    if count >= MAX_ROOMS_PER_DAY:
-        raise HTTPException(status_code=429, detail="Room limit reached")
-
-    room = Room(
-        name=clean_room_name(input.name),
-        emoji=input.emoji or "💬",
-        creator_session_id=session_id
-    )
-
-    await db.rooms.insert_one(room.model_dump())
-    logger.info(f"Room created: {room.id} — '{room.name}' by session {session_id}")
-    return room
-
-
-# =========================
-# GET ROOMS
-# =========================
+# ── Static rooms (no DB needed) ───────────────────────────────────────────────
+STATIC_ROOMS = {
+    "general": {"name": "General Whispers", "emoji": "💬"},
+    "love":    {"name": "Love & Crush",     "emoji": "💕"},
+    "college": {"name": "College Life",     "emoji": "🎓"},
+    "rants":   {"name": "Rants",            "emoji": "😤"},
+    "fun":     {"name": "Fun & Games",      "emoji": "🎮"},
+}
 
 @api_router.get("/rooms")
 async def get_rooms():
-    now = datetime.now(timezone.utc).isoformat()
-
-    rooms = await db.rooms.find(
-        {"expires_at": {"$gt": now}},
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-
     result = []
-    for room in rooms:
-        room_id = room["id"]
+    for room_id, info in STATIC_ROOMS.items():
         result.append({
-            **room,
-            "online": len(room_connections.get(room_id, []))
+            "id": room_id,
+            "name": info["name"],
+            "emoji": info["emoji"],
+            "online": len(room_connections.get(room_id, [])),
         })
-
     return result
 
+# ── Room WebSocket ─────────────────────────────────────────────────────────────
+# Frontend connects to: /api/ws/room/{room_id}?nickname=...&is_anon=...
+# Message types frontend sends:  message, typing
+# Message types backend sends:   system, message, typing, members
 
-# =========================
-# GET ROOM MESSAGES
-# =========================
-
-@api_router.get("/rooms/{room_id}/messages")
-async def get_room_messages(room_id: str):
-    room = await db.rooms.find_one({"id": room_id})
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-
-    messages = await db.room_messages.find(
-        {"room_id": room_id},
-        {"_id": 0}
-    ).sort("created_at", 1).limit(100).to_list(100)
-
-    return messages
-
-
-# =========================
-# ROOM WEBSOCKET
-# Supports message types:
-#   text    — plain text message (saved to DB, broadcast to all)
-#   image   — image URL message  (saved to DB, broadcast to all)
-#   gif     — gif URL message    (saved to DB, broadcast to all)
-#   file    — file URL + name    (saved to DB, broadcast to all)
-#   typing  — typing indicator   (NOT saved, broadcast to others only)
-#   members — request member list (returns members list to requester only)
-# =========================
-
-@app.websocket("/api/ws/rooms/{room_id}")
+@app.websocket("/api/ws/room/{room_id}")
 async def room_websocket(
     websocket: WebSocket,
     room_id: str,
-    nickname: str = Query("Anonymous")
+    nickname: str = Query("Anonymous"),
+    is_anon: bool = Query(False),
 ):
-    room = await db.rooms.find_one({"id": room_id})
-    if not room:
+    if room_id not in STATIC_ROOMS:
         await websocket.close(code=4004)
         return
 
     await websocket.accept()
 
-    room_connections[room_id].append({
-        "ws": websocket,
-        "nickname": nickname
-    })
+    display_name = "Anonymous" if is_anon else nickname
+    user = {"ws": websocket, "nickname": display_name, "is_anon": is_anon}
+    room_connections[room_id].append(user)
 
-    # Broadcast join system message to everyone in the room
+    online = len(room_connections[room_id])
+
+    # Notify everyone someone joined
     join_msg = {
-        "id": str(uuid.uuid4()),
         "type": "system",
-        "text": f"{nickname} joined",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "online": len(room_connections[room_id])
+        "text": f"{display_name} joined",
+        "online": online,
     }
-    for c in room_connections[room_id]:
+    for u in room_connections[room_id]:
         try:
-            await c["ws"].send_json(join_msg)
+            await u["ws"].send_json(join_msg)
         except:
             pass
 
-    # Send current members list to the newly joined user
+    # Send members list to newly joined user
     try:
         await websocket.send_json({
             "type": "members",
-            "members": [c["nickname"] for c in room_connections[room_id]],
-            "online": len(room_connections[room_id])
+            "members": [{"nickname": u["nickname"], "is_anon": u["is_anon"]} for u in room_connections[room_id]],
+            "online": online,
         })
     except:
         pass
@@ -1088,187 +781,93 @@ async def room_websocket(
             data = await websocket.receive_json()
             msg_type = data.get("type", "")
 
-            # ── TEXT MESSAGE ──────────────────────────────────────────
-            if msg_type == "text":
-                text = data.get("text", "")
-                if not validate_message(text):
+            # ── Text / Image / GIF message ─────────────────────────────
+            if msg_type == "message":
+                text  = data.get("text", "")
+                image = data.get("image")
+                gif   = data.get("gif")
+
+                # Must have at least one content
+                if not text.strip() and not image and not gif:
                     continue
 
-                message = RoomMessage(
-                    room_id=room_id,
-                    nickname=nickname,
-                    type="text",
-                    text=text
-                )
-                await db.room_messages.insert_one(message.model_dump())
-
-                broadcast = message.model_dump()
-                broadcast["online"] = len(room_connections[room_id])
-                for c in room_connections[room_id]:
-                    try:
-                        await c["ws"].send_json(broadcast)
-                    except:
-                        pass
-
-            # ── IMAGE MESSAGE ─────────────────────────────────────────
-            elif msg_type == "image":
-                image_url = data.get("image", "")
-                if not image_url:
-                    continue
-
-                message = RoomMessage(
-                    room_id=room_id,
-                    nickname=nickname,
-                    type="image",
-                    image=image_url
-                )
-                await db.room_messages.insert_one(message.model_dump())
-
-                broadcast = message.model_dump()
-                broadcast["online"] = len(room_connections[room_id])
-                for c in room_connections[room_id]:
-                    try:
-                        await c["ws"].send_json(broadcast)
-                    except:
-                        pass
-
-            # ── GIF MESSAGE ───────────────────────────────────────────
-            elif msg_type == "gif":
-                gif_url = data.get("gif", "")
-                if not gif_url:
-                    continue
-
-                message = RoomMessage(
-                    room_id=room_id,
-                    nickname=nickname,
-                    type="gif",
-                    gif=gif_url
-                )
-                await db.room_messages.insert_one(message.model_dump())
-
-                broadcast = message.model_dump()
-                broadcast["online"] = len(room_connections[room_id])
-                for c in room_connections[room_id]:
-                    try:
-                        await c["ws"].send_json(broadcast)
-                    except:
-                        pass
-
-            # ── FILE MESSAGE ──────────────────────────────────────────
-            elif msg_type == "file":
-                file_url = data.get("file_url", "")
-                file_name = data.get("file_name", "file")
-                if not file_url:
-                    continue
-
-                message = RoomMessage(
-                    room_id=room_id,
-                    nickname=nickname,
-                    type="file",
-                    file_url=file_url,
-                    file_name=file_name
-                )
-                await db.room_messages.insert_one(message.model_dump())
-
-                broadcast = message.model_dump()
-                broadcast["online"] = len(room_connections[room_id])
-                for c in room_connections[room_id]:
-                    try:
-                        await c["ws"].send_json(broadcast)
-                    except:
-                        pass
-
-            # ── TYPING INDICATOR ──────────────────────────────────────
-            # Not saved to DB. Sent to everyone EXCEPT the sender.
-            elif msg_type == "typing":
-                typing_msg = {
-                    "type": "typing",
-                    "nickname": nickname,
+                broadcast = {
+                    "type":     "message",
+                    "nickname": display_name,
+                    "is_anon":  is_anon,
+                    "text":     text,
+                    "image":    image,
+                    "gif":      gif,
+                    "time":     datetime.now(timezone.utc).isoformat(),
+                    "online":   len(room_connections[room_id]),
                 }
-                for c in room_connections[room_id]:
-                    if c["ws"] != websocket:
+                for u in room_connections[room_id]:
+                    try:
+                        await u["ws"].send_json(broadcast)
+                    except:
+                        pass
+
+            # ── Typing indicator ───────────────────────────────────────
+            elif msg_type == "typing":
+                typing_msg = {"type": "typing", "nickname": display_name}
+                for u in room_connections[room_id]:
+                    if u["ws"] != websocket:
                         try:
-                            await c["ws"].send_json(typing_msg)
+                            await u["ws"].send_json(typing_msg)
                         except:
                             pass
 
-            # ── MEMBERS REQUEST ───────────────────────────────────────
-            # Returns live member list only to the requester.
-            elif msg_type == "members":
-                try:
-                    await websocket.send_json({
-                        "type": "members",
-                        "members": [c["nickname"] for c in room_connections[room_id]],
-                        "online": len(room_connections[room_id])
-                    })
-                except:
-                    pass
-
     except WebSocketDisconnect:
-        room_connections[room_id] = [
-            u for u in room_connections[room_id]
-            if u["ws"] != websocket
-        ]
+        room_connections[room_id] = [u for u in room_connections[room_id] if u["ws"] != websocket]
+        online_after = len(room_connections[room_id])
 
-        leave_msg = {
-            "id": str(uuid.uuid4()),
-            "type": "system",
-            "text": f"{nickname} left",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "online": len(room_connections[room_id])
-        }
-        for c in room_connections[room_id]:
+        # Notify everyone someone left
+        leave_msg = {"type": "system", "text": f"{display_name} left", "online": online_after}
+        for u in room_connections[room_id]:
             try:
-                await c["ws"].send_json(leave_msg)
+                await u["ws"].send_json(leave_msg)
             except:
                 pass
 
-        # Broadcast updated members list after someone leaves
+        # Send updated members list
         updated_members = {
             "type": "members",
-            "members": [c["nickname"] for c in room_connections[room_id]],
-            "online": len(room_connections[room_id])
+            "members": [{"nickname": u["nickname"], "is_anon": u["is_anon"]} for u in room_connections[room_id]],
+            "online": online_after,
         }
-        for c in room_connections[room_id]:
+        for u in room_connections[room_id]:
             try:
-                await c["ws"].send_json(updated_members)
+                await u["ws"].send_json(updated_members)
             except:
                 pass
 
+    except Exception as e:
+        logger.error(f"Room WS error: {e}")
+        room_connections[room_id] = [u for u in room_connections[room_id] if u["ws"] != websocket]
 
-@api_router.get("/online-count")
-async def get_online_count():
-    return {"online": stranger_chat_manager.online_count, "waiting": len(stranger_chat_manager.waiting_users)}
 
-
-# WebSocket for Random Chat
+# ── WebSocket for Random Chat ─────────────────────────────────────────────────
 @app.websocket("/api/ws/random-chat")
 async def websocket_random_chat(websocket: WebSocket, session_id: str = Query(...)):
-    logger.info(f"WebSocket connection attempt from session: {session_id}")
     try:
         await websocket.accept()
     except Exception as e:
         logger.error(f"Failed to accept WebSocket: {e}")
         return
     try:
-        room_id = await random_chat_manager.find_match(session_id, websocket)
+        await random_chat_manager.find_match(session_id, websocket)
         while True:
             data = await websocket.receive_json()
             if data.get("action") == "skip":
                 await random_chat_manager.disconnect_user(session_id)
-                room_id = await random_chat_manager.find_match(session_id, websocket)
+                await random_chat_manager.find_match(session_id, websocket)
                 continue
             if session_id in random_chat_manager.active_chats:
                 chat_info = random_chat_manager.active_chats[session_id]
                 partner_id = chat_info.get("partner_id")
                 if partner_id and partner_id in random_chat_manager.active_chats:
                     partner_ws = random_chat_manager.active_chats[partner_id]["websocket"]
-                    message = {
-                        "type": data.get("type", "text"),
-                        "text": data.get("text"),
-                        "media_url": data.get("media_url"),
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }
+                    message = {"type": data.get("type", "text"), "text": data.get("text"), "media_url": data.get("media_url"), "timestamp": datetime.now(timezone.utc).isoformat()}
                     try:
                         await partner_ws.send_json(message)
                     except:
@@ -1279,27 +878,18 @@ async def websocket_random_chat(websocket: WebSocket, session_id: str = Query(..
         logger.error(f"WebSocket error for {session_id}: {e}")
         await random_chat_manager.disconnect_user(session_id)
 
-
-# WebSocket for chat
+# ── WebSocket for room chat (old) ─────────────────────────────────────────────
 @app.websocket("/api/ws/chat/{room_id}")
 async def websocket_chat(websocket: WebSocket, room_id: str):
     await manager.connect(room_id, websocket)
     try:
         while True:
             data = await websocket.receive_json()
-            message = {
-                "id": str(uuid.uuid4()),
-                "room_id": room_id,
-                "session_id": data.get("session_id"),
-                "text": data.get("text"),
-                "nickname": data.get("nickname", "Anonymous"),
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
+            message = {"id": str(uuid.uuid4()), "room_id": room_id, "session_id": data.get("session_id"), "text": data.get("text"), "nickname": data.get("nickname", "Anonymous"), "created_at": datetime.now(timezone.utc).isoformat()}
             await db.chat_messages.insert_one(message)
             await manager.broadcast(room_id, message)
     except WebSocketDisconnect:
         manager.disconnect(room_id, websocket)
-
 
 async def _ws_keepalive(websocket: WebSocket, interval: int = 5):
     try:
@@ -1310,11 +900,10 @@ async def _ws_keepalive(websocket: WebSocket, interval: int = 5):
                     await websocket.send_json({'type': 'ping'})
                 else:
                     break
-            except Exception:
+            except:
                 break
     except asyncio.CancelledError:
         pass
-
 
 async def _handle_stranger_message(user_id: str, data: dict, websocket: WebSocket) -> bool:
     msg_type = data.get('type', data.get('action', 'unknown'))
@@ -1329,16 +918,13 @@ async def _handle_stranger_message(user_id: str, data: dict, websocket: WebSocke
         await stranger_chat_manager.handle_partner_dead(user_id)
         try:
             await websocket.send_json({'type': 'disconnected'})
-        except Exception:
+        except:
             return False
         return True
     return True
 
-
-# WebSocket for Stranger Chat
 @app.websocket("/api/ws/stranger-chat")
 async def websocket_stranger_chat(websocket: WebSocket, user_id: str = Query(...)):
-    logger.info(f"Stranger chat connection attempt from: {user_id}")
     try:
         await websocket.accept()
     except Exception as e:
@@ -1346,7 +932,7 @@ async def websocket_stranger_chat(websocket: WebSocket, user_id: str = Query(...
         return
     try:
         await websocket.send_json({'type': 'ping'})
-    except Exception:
+    except:
         return
     ping_task = asyncio.create_task(_ws_keepalive(websocket))
     try:
@@ -1354,91 +940,50 @@ async def websocket_stranger_chat(websocket: WebSocket, user_id: str = Query(...
         while True:
             try:
                 raw = await websocket.receive_text()
-            except Exception as e:
+            except:
                 break
             try:
                 data = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
+            except:
                 continue
             if not await _handle_stranger_message(user_id, data, websocket):
                 break
     except WebSocketDisconnect:
-        logger.info(f"Stranger chat disconnected: {user_id}")
+        pass
     except Exception as e:
         logger.error(f"Stranger chat error for {user_id}: {e}")
     finally:
         ping_task.cancel()
         await stranger_chat_manager.disconnect(user_id)
 
-
 # Include router
 app.include_router(api_router)
 
-
-# =========================
-# 24-HOUR AUTO-DELETE TASK
-# =========================
-
+# ── Auto-delete task ──────────────────────────────────────────────────────────
 async def auto_delete_old_data():
     while True:
         try:
-            now = datetime.now(timezone.utc)
-            cutoff = (now - timedelta(hours=24)).isoformat()
-            now_iso = now.isoformat()
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            del_conf  = await db.confessions.delete_many({"created_at": {"$lt": cutoff}})
+            del_comm  = await db.comments.delete_many({"created_at": {"$lt": cutoff}})
+            del_chat  = await db.chat_messages.delete_many({"created_at": {"$lt": cutoff}})
+            del_sess  = await db.sessions.delete_many({"created_at": {"$lt": cutoff}})
+            del_react = await db.reactions.delete_many({"created_at": {"$lt": cutoff}})
 
-            del_conf = await db.confessions.delete_many({"created_at": {"$lt": cutoff}})
-            del_comm = await db.comments.delete_many({"created_at": {"$lt": cutoff}})
-            del_chat = await db.chat_messages.delete_many({"created_at": {"$lt": cutoff}})
-
-            deleted_rooms = await db.rooms.delete_many({
-                "expires_at": {"$lt": now_iso}
-            })
-
-            active_rooms = await db.rooms.find({}, {"_id": 0, "id": 1}).to_list(1000)
-            active_room_ids = [r["id"] for r in active_rooms]
-
-            deleted_room_messages = await db.room_messages.delete_many({
-                "$or": [
-                    {"created_at": {"$lt": cutoff}},
-                    {"room_id": {"$nin": active_room_ids}}
-                ]
-            })
-
-            logger.info(
-                f"Auto-delete: {deleted_rooms.deleted_count} expired rooms, "
-                f"{deleted_room_messages.deleted_count} room messages"
-            )
-
-            old_files = await db.files.find(
-                {"created_at": {"$lt": cutoff}, "is_deleted": False}, {"_id": 0}
-            ).to_list(1000)
-
+            old_files = await db.files.find({"created_at": {"$lt": cutoff}, "is_deleted": False}, {"_id": 0}).to_list(1000)
             for f in old_files:
                 if f.get("public_id"):
                     content_type = f.get("content_type", "")
                     resource_type = "video" if content_type.startswith("video/") else "image"
                     await delete_from_cloudinary(f["public_id"], resource_type)
+            del_files = await db.files.update_many({"created_at": {"$lt": cutoff}, "is_deleted": False}, {"$set": {"is_deleted": True}})
 
-            del_files = await db.files.update_many(
-                {"created_at": {"$lt": cutoff}, "is_deleted": False},
-                {"$set": {"is_deleted": True}}
-            )
-            del_sess = await db.sessions.delete_many({"created_at": {"$lt": cutoff}})
-            del_react = await db.reactions.delete_many({"created_at": {"$lt": cutoff}})
-
-            total = (
-                del_conf.deleted_count + del_comm.deleted_count +
-                del_chat.deleted_count + del_sess.deleted_count +
-                del_react.deleted_count
-            )
+            total = del_conf.deleted_count + del_comm.deleted_count + del_chat.deleted_count + del_sess.deleted_count + del_react.deleted_count
             if total > 0:
                 logger.info(f"Auto-delete: removed {total} old records")
-
         except Exception as e:
             logger.error(f"Auto-delete error: {e}")
-
         await asyncio.sleep(600)
-
 
 @app.on_event("startup")
 async def startup():
@@ -1450,23 +995,16 @@ async def startup():
         if admin_email and admin_password:
             admin_exists = await db.admins.find_one({"email": admin_email})
             if not admin_exists:
-                await db.admins.insert_one({
-                    "id": str(uuid.uuid4()),
-                    "email": admin_email,
-                    "password_hash": pwd_context.hash(admin_password),
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                })
+                await db.admins.insert_one({"id": str(uuid.uuid4()), "email": admin_email, "password_hash": pwd_context.hash(admin_password), "created_at": datetime.now(timezone.utc).isoformat()})
                 logger.info("Admin created from environment variables")
         asyncio.create_task(auto_delete_old_data())
         logger.info("24-hour auto-delete task started")
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
-
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
-
 
 @app.get("/admin.html", response_class=HTMLResponse)
 async def admin_panel():
@@ -1474,7 +1012,6 @@ async def admin_panel():
     if not admin_file.exists():
         raise HTTPException(status_code=404, detail="Admin panel not found")
     return HTMLResponse(content=admin_file.read_text())
-
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
