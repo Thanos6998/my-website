@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { getSessionId, getDeviceId, setSessionId } from './session';
 
-const BACKEND_URL = 'http://127.0.0.1:8000';
+// ✅ Use environment variable in production, fallback to localhost for development
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://127.0.0.1:8000';
 export const API = `${BACKEND_URL}/api`;
 
 const api = axios.create({
@@ -33,14 +34,10 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// ========================
-// ROOMS API
-// FIX: export functions that unwrap .data so callers get the array/object directly
-// ========================
-
+// ── ROOMS API ────────────────────────────────────────────────────────────────
 export const getRooms = async () => {
   const res = await api.get('/rooms');
-  return res.data; // returns the array directly
+  return res.data;
 };
 
 export const createRoom = async (name, emoji = '💬') => {

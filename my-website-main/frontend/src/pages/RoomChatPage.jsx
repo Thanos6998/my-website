@@ -36,7 +36,9 @@ const GifPicker = ({ onSelect, onClose }) => {
       const res  = await fetch(url);
       const data = await res.json();
       setGifs(data.results || []);
-    } catch {}
+    } catch (e) {
+      console.error('[GIF] Fetch failed:', e);
+    }
     setLoading(false);
   };
 
@@ -59,7 +61,10 @@ const GifPicker = ({ onSelect, onClose }) => {
                 const url = gif.media_formats?.tinygif?.url || gif.media_formats?.gif?.url;
                 if (!url) return null;
                 return (
-                  <img key={gif.id} src={gif.media_formats?.nanogif?.url || url} alt={gif.title}
+                  <img
+                    key={gif.id}
+                    src={gif.media_formats?.nanogif?.url || url}
+                    alt={gif.title}
                     onClick={() => onSelect(url)}
                     style={{ width:'100%', height:80, objectFit:'cover', borderRadius:8, cursor:'pointer', border:'0.5px solid rgba(255,255,255,0.06)' }}
                   />
@@ -114,6 +119,9 @@ const MessageBubble = ({ msg, myName }) => {
   const isMine = msg.nickname === myName;
   const c      = getColor(msg.nickname || 'A');
 
+  // ✅ Media URL from Cloudinary is already a full https:// URL — use directly
+  const mediaUrl = msg.media_url || null;
+
   return (
     <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
       <div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:500, marginTop:2, background: msg.is_anon ? 'rgba(255,255,255,0.07)' : c.bg, color: msg.is_anon ? 'rgba(255,255,255,0.35)' : c.color }}>
@@ -130,7 +138,11 @@ const MessageBubble = ({ msg, myName }) => {
         </div>
 
         {/* Text */}
-        {msg.text && <p style={{ fontSize:13, lineHeight:1.55, margin:0, wordBreak:'break-word', color: isMine ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.7)' }}>{msg.text}</p>}
+        {msg.text && (
+          <p style={{ fontSize:13, lineHeight:1.55, margin:0, wordBreak:'break-word', color: isMine ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.7)' }}>
+            {msg.text}
+          </p>
+        )}
 
         {/* Emoji */}
         {msg.emoji && <p style={{ fontSize:32, margin:'2px 0' }}>{msg.emoji}</p>}
@@ -143,11 +155,25 @@ const MessageBubble = ({ msg, myName }) => {
           </div>
         )}
 
-        {/* Image / Video */}
-        {msg.media_url && (
+        {/* ✅ Image / Video — use media_url directly (Cloudinary full URL) */}
+        {mediaUrl && (
           msg.media_type === 'video'
-            ? <video src={msg.media_url} controls style={{ maxWidth:220, borderRadius:10, marginTop:4, display:'block' }}/>
-            : <img src={msg.media_url} alt="" onClick={() => window.open(msg.media_url, '_blank')} style={{ maxWidth:220, borderRadius:10, marginTop:4, display:'block', cursor:'pointer', border:'0.5px solid rgba(255,255,255,0.08)' }}/>
+            ? (
+              <video
+                src={mediaUrl}
+                controls
+                style={{ maxWidth:220, borderRadius:10, marginTop:4, display:'block' }}
+                onError={e => console.error('[Room] Video load error:', mediaUrl, e)}
+              />
+            ) : (
+              <img
+                src={mediaUrl}
+                alt="media"
+                onClick={() => window.open(mediaUrl, '_blank')}
+                style={{ maxWidth:220, borderRadius:10, marginTop:4, display:'block', cursor:'pointer', border:'0.5px solid rgba(255,255,255,0.08)' }}
+                onError={e => console.error('[Room] Image load error:', mediaUrl, e)}
+              />
+            )
         )}
       </div>
     </div>
@@ -182,7 +208,7 @@ const RoomChatPage = () => {
   const fileRef      = useRef(null);
   const mountedRef   = useRef(true);
   const typingTimers = useRef({});
-  const msgIds       = useRef(new Set()); // prevent duplicate renders
+  const msgIds       = useRef(new Set());
 
   const displayName = isAnon ? 'Anonymous' : nickname;
 
@@ -204,25 +230,24 @@ const RoomChatPage = () => {
   }, [roomId]);
 
   const addMessage = (msg) => {
-    // Deduplicate by id
     if (msg.id && msgIds.current.has(msg.id)) return;
     if (msg.id) msgIds.current.add(msg.id);
     setMessages(prev => [...prev, msg]);
   };
 
   const connectWS = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
 
     const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
     const wsBase     = backendUrl.replace('https://', 'wss://').replace('http://', 'ws://');
     const wsUrl      = `${wsBase}/api/ws/room/${roomId}?nickname=${encodeURIComponent(nickname)}&is_anon=${isAnon}`;
-    const socket     = new WebSocket(wsUrl);
+
+    console.log('[Room] Connecting WS:', wsUrl);
+    const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
       if (!mountedRef.current) { socket.close(); return; }
+      console.log('[Room] WS connected');
       setConnected(true);
     };
 
@@ -232,17 +257,18 @@ const RoomChatPage = () => {
       try { data = JSON.parse(event.data); } catch { return; }
 
       if (data.type === 'history') {
-        // Load history — reset messages
         msgIds.current = new Set();
+        // ✅ Fixed: use sub_type for media_type, not the top-level type
         const history = (data.messages || []).map(m => ({
           id:         m.id,
           type:       m.type === 'system' ? 'system' : 'message',
           nickname:   m.nickname,
           is_anon:    m.is_anon,
-          text:       m.text,
-          emoji:      m.emoji,
-          gif_url:    m.gif_url,
-          media_url:  m.media_url,
+          text:       m.text     || null,
+          emoji:      m.emoji    || null,
+          gif_url:    m.gif_url  || null,
+          media_url:  m.media_url || null,
+          // ✅ sub_type is "image" or "video", stored in DB as the message type
           media_type: m.type === 'video' ? 'video' : m.type === 'image' ? 'image' : null,
           time:       m.created_at,
         }));
@@ -255,16 +281,17 @@ const RoomChatPage = () => {
 
       } else if (data.type === 'message') {
         setOnlineCount(data.online || onlineCount);
+        // ✅ Backend broadcasts sub_type for media type
         addMessage({
           id:         data.id,
           type:       'message',
           nickname:   data.nickname,
           is_anon:    data.is_anon,
-          text:       data.text,
-          emoji:      data.emoji,
-          gif_url:    data.gif_url,
-          media_url:  data.media_url,
-          media_type: data.media_type,
+          text:       data.text     || null,
+          emoji:      data.emoji    || null,
+          gif_url:    data.gif_url  || null,
+          media_url:  data.media_url || null,
+          media_type: data.media_type || null, // backend sends this in broadcast
           time:       data.time,
         });
         clearTyping(data.nickname);
@@ -282,16 +309,19 @@ const RoomChatPage = () => {
       }
     };
 
-    socket.onclose = () => {
+    socket.onclose = (e) => {
+      console.log('[Room] WS closed:', e.code, e.reason);
       if (mountedRef.current) {
         setConnected(false);
-        // Auto reconnect after 2s
         setTimeout(() => { if (mountedRef.current) connectWS(); }, 2000);
       }
       wsRef.current = null;
     };
 
-    socket.onerror = () => {};
+    socket.onerror = (e) => {
+      console.error('[Room] WS error:', e);
+    };
+
     wsRef.current = socket;
   };
 
@@ -302,10 +332,10 @@ const RoomChatPage = () => {
       wsRef.current.send(JSON.stringify(data));
       return true;
     }
+    toast.error('Not connected. Reconnecting…');
     return false;
   };
 
-  // Send text
   const sendMessage = () => {
     const text = inputText.trim();
     if (!text || !connected) return;
@@ -314,38 +344,58 @@ const RoomChatPage = () => {
     setShowEmoji(false);
   };
 
-  // Send emoji (standalone)
   const sendEmoji = (emoji) => {
     if (!connected) return;
     safeSend({ type:'message', emoji });
     setShowEmoji(false);
   };
 
-  // Send GIF
   const sendGif = (gif_url) => {
     if (!connected) return;
     setShowGif(false);
     safeSend({ type:'message', gif_url });
   };
 
-  // Upload image/video then send
+  // ✅ Fixed: upload to /rooms/upload-media, then send media_url + media_type over WS
   const handleMediaUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file || !connected) return;
+    if (!file) return;
+    if (!connected) { toast.error('Not connected'); return; }
+
     const isVideo = file.type.startsWith('video/');
     const maxMB   = isVideo ? 10 : 2;
-    if (file.size / 1024 / 1024 > maxMB) { toast.error(`Max ${maxMB}MB`); return; }
+    const sizeMB  = file.size / 1024 / 1024;
+
+    if (sizeMB > maxMB) {
+      toast.error(`${isVideo ? 'Video' : 'Image'} must be under ${maxMB}MB`);
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('media', file);
-      const res       = await api.post('/rooms/upload-media', formData);
-      const media_url = res.data.media_url;
-      safeSend({ type:'message', media_url, media_type: isVideo ? 'video' : 'image' });
+
+      console.log('[Room] Uploading media:', file.name, file.type, sizeMB.toFixed(2) + 'MB');
+
+      // ✅ No Content-Type header needed — axios sets it with boundary automatically
+      const res = await api.post('/rooms/upload-media', formData);
+
+      console.log('[Room] Upload success:', res.data.media_url);
+
+      // ✅ Send media_url (full Cloudinary URL) + media_type over WebSocket
+      safeSend({
+        type:       'message',
+        media_url:  res.data.media_url,
+        media_type: isVideo ? 'video' : 'image',
+      });
+
       toast.success('Media sent!');
-    } catch { toast.error('Upload failed'); }
-    finally {
+    } catch (err) {
+      console.error('[Room] Upload error:', err.response?.status, err.response?.data || err.message);
+      toast.error(err.response?.data?.detail || 'Upload failed. Try again.');
+    } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
@@ -367,10 +417,13 @@ const RoomChatPage = () => {
           <p style={{ color:'rgba(255,255,255,0.9)', fontSize:14, fontWeight:600, margin:0 }}>{room.name}</p>
           <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
             <div style={{ width:5, height:5, borderRadius:'50%', background: connected ? '#4ade80' : '#666' }}/>
-            <span style={{ color:'rgba(255,255,255,0.35)', fontSize:11 }}>{connected ? `${onlineCount} online` : 'Connecting...'}</span>
+            <span style={{ color:'rgba(255,255,255,0.35)', fontSize:11 }}>{connected ? `${onlineCount} online` : 'Connecting…'}</span>
           </div>
         </div>
-        <button onClick={() => setShowMembers(true)} style={{ background:'rgba(255,255,255,0.06)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'7px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'rgba(255,255,255,0.6)' }}>
+        <button
+          onClick={() => setShowMembers(true)}
+          style={{ background:'rgba(255,255,255,0.06)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'7px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'rgba(255,255,255,0.6)' }}
+        >
           <Users size={16}/>
           <span style={{ fontSize:12, fontWeight:500 }}>{onlineCount}</span>
         </button>
@@ -390,10 +443,19 @@ const RoomChatPage = () => {
               {[0,1,2].map(i => <div key={i} style={{ width:4, height:4, borderRadius:'50%', background:'rgba(255,255,255,0.25)', animation:`tdot 1.2s ${i*0.2}s infinite` }}/>)}
             </div>
             <span style={{ fontSize:11, color:'rgba(255,255,255,0.25)' }}>
-              {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.length} people typing...`}
+              {typingUsers.length === 1 ? `${typingUsers[0]} is typing…` : `${typingUsers.length} people typing…`}
             </span>
           </div>
         )}
+
+        {/* Upload progress */}
+        {uploading && (
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', background:'rgba(255,255,255,0.04)', borderRadius:10 }}>
+            <div style={{ width:14, height:14, border:'2px solid rgba(255,255,255,0.15)', borderTopColor:'#E63946', borderRadius:'50%', animation:'spin 0.7s linear infinite', flexShrink:0 }}/>
+            <span style={{ fontSize:12, color:'rgba(255,255,255,0.4)' }}>Uploading media…</span>
+          </div>
+        )}
+
         <div ref={bottomRef}/>
       </div>
 
@@ -413,34 +475,52 @@ const RoomChatPage = () => {
 
       {/* Input bar */}
       <div style={{ background:'#0F0F0F', borderTop:'0.5px solid rgba(255,255,255,0.07)', padding:'8px 12px', display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-        <input type="file" ref={fileRef} onChange={handleMediaUpload} accept="image/*,video/*" style={{ display:'none' }}/>
+        <input
+          type="file"
+          ref={fileRef}
+          onChange={handleMediaUpload}
+          accept="image/*,video/*"
+          style={{ display:'none' }}
+        />
 
-        <button onClick={() => { fileRef.current?.click(); setShowEmoji(false); setShowGif(false); }} disabled={uploading}
-          style={{ background:'none', border:'none', cursor:'pointer', color:'rgba(255,255,255,0.35)', padding:4, display:'flex' }} title="Send image/video">
+        <button
+          onClick={() => { fileRef.current?.click(); setShowEmoji(false); setShowGif(false); }}
+          disabled={uploading}
+          style={{ background:'none', border:'none', cursor: uploading ? 'wait' : 'pointer', color: uploading ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.35)', padding:4, display:'flex' }}
+          title="Send image/video"
+        >
           <ImageIcon size={20}/>
         </button>
 
-        <button onClick={() => { setShowGif(v => !v); setShowEmoji(false); }}
-          style={{ background: showGif ? 'rgba(230,57,70,0.1)' : 'none', border:'none', cursor:'pointer', padding:'4px 6px', color: showGif ? '#E63946' : 'rgba(255,255,255,0.35)', borderRadius:6, fontSize:11, fontWeight:800 }} title="Send GIF">
-          GIF
-        </button>
+        <button
+          onClick={() => { setShowGif(v => !v); setShowEmoji(false); }}
+          style={{ background: showGif ? 'rgba(230,57,70,0.1)' : 'none', border:'none', cursor:'pointer', padding:'4px 6px', color: showGif ? '#E63946' : 'rgba(255,255,255,0.35)', borderRadius:6, fontSize:11, fontWeight:800 }}
+          title="Send GIF"
+        >GIF</button>
 
-        <button onClick={() => { setShowEmoji(v => !v); setShowGif(false); }}
-          style={{ background: showEmoji ? 'rgba(230,57,70,0.1)' : 'none', border:'none', cursor:'pointer', padding:4, display:'flex', color: showEmoji ? '#E63946' : 'rgba(255,255,255,0.35)', borderRadius:6 }} title="Emoji">
+        <button
+          onClick={() => { setShowEmoji(v => !v); setShowGif(false); }}
+          style={{ background: showEmoji ? 'rgba(230,57,70,0.1)' : 'none', border:'none', cursor:'pointer', padding:4, display:'flex', color: showEmoji ? '#E63946' : 'rgba(255,255,255,0.35)', borderRadius:6 }}
+          title="Emoji"
+        >
           <Smile size={20}/>
         </button>
 
         <input
-          type="text" value={inputText}
+          type="text"
+          value={inputText}
           onChange={e => { setInputText(e.target.value); safeSend({ type:'typing' }); }}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }}}
-          placeholder={connected ? 'Whisper something...' : 'Connecting...'}
+          placeholder={connected ? 'Whisper something…' : 'Connecting…'}
           disabled={!connected}
           style={{ flex:1, background:'rgba(255,255,255,0.05)', border:'0.5px solid rgba(255,255,255,0.08)', borderRadius:20, padding:'9px 14px', fontSize:13, color:'rgba(255,255,255,0.85)', outline:'none', fontFamily:'inherit', opacity: connected ? 1 : 0.5 }}
         />
 
-        <button onClick={sendMessage} disabled={!inputText.trim() || !connected}
-          style={{ width:36, height:36, borderRadius:'50%', border:'none', background:(inputText.trim() && connected) ? '#E63946' : 'rgba(255,255,255,0.06)', cursor:(inputText.trim() && connected) ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s' }}>
+        <button
+          onClick={sendMessage}
+          disabled={!inputText.trim() || !connected}
+          style={{ width:36, height:36, borderRadius:'50%', border:'none', background:(inputText.trim() && connected) ? '#E63946' : 'rgba(255,255,255,0.06)', cursor:(inputText.trim() && connected) ? 'pointer' : 'not-allowed', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.15s' }}
+        >
           <Send size={16} color={(inputText.trim() && connected) ? '#fff' : 'rgba(255,255,255,0.2)'}/>
         </button>
       </div>
@@ -449,6 +529,7 @@ const RoomChatPage = () => {
 
       <style>{`
         @keyframes tdot { 0%,60%,100%{opacity:.25} 30%{opacity:.9} }
+        @keyframes spin  { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
